@@ -4,13 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET() {
   const { data, error } = await supabaseAdmin
     .from('entities')
-    .select('id, name, created_at, type_id')
+    .select('id, name, created_at, type_id, entity_types(name)') // Join para traer el nombre del tipo
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json(data || [])
 }
 
 export async function POST(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from('entities')
     .insert([{ name, type_id }])
-    .select()
+    .select('id, name, created_at, type_id, entity_types(name)') // Incluye tipo también al crear
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
