@@ -1,13 +1,10 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { NextRequest, NextResponse } from 'next/server'
 
-type RouteContext = {
-  params: {
-    id: string
-  }
-}
-
-export async function PUT(req: NextRequest, context: RouteContext) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   const { id } = context.params
   const body = await req.json()
 
