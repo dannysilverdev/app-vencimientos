@@ -1,35 +1,20 @@
-'use client'
+import './globals.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import ResponsiveDrawer from '@/components/ResponsiveDrawer'
 
-import { AppBar, Box, Toolbar, Typography, Button, Container } from '@mui/material'
-import Link from 'next/link'
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata: Metadata = {
+  title: 'Deadline Tracker',
+  description: 'Control flexible de vencimientos por entidad'
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body>
-        <AppBar position="static">
-          <Toolbar>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              App Vencimientos
-            </Typography>
-            <Link href="/" passHref>
-              <Button color="inherit">Dashboard</Button>
-            </Link>
-            <Link href="/entities/new" passHref>
-              <Button color="inherit">+ Entidad</Button>
-            </Link>
-            <Link href="/entity-types" passHref>
-              <Button color="inherit">Tipos</Button>
-            </Link>
-            <Link href="/deadline-types" passHref>
-              <Button color="inherit">Vencimientos</Button>
-            </Link>
-          </Toolbar>
-        </AppBar>
-
-        <Container maxWidth="lg" sx={{ mt: 4 }}>
-          {children}
-        </Container>
+      <body className={inter.className}>
+        <ResponsiveDrawer>{children}</ResponsiveDrawer>
       </body>
     </html>
   )

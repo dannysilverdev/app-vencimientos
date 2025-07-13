@@ -12,7 +12,12 @@ import {
   Alert,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
 } from '@mui/material'
 import Link from 'next/link'
 import CircleIcon from '@mui/icons-material/Circle'
@@ -41,31 +46,43 @@ type Deadline = {
   }
 }
 
+type Entity = {
+  id: string
+  name: string
+}
+
 export default function EntityDetailPage() {
   const params = useParams()
   const entityId = params?.id as string
 
+  const [entity, setEntity] = useState<Entity | null>(null)
   const [fieldValues, setFieldValues] = useState<FieldValue[]>([])
   const [deadlines, setDeadlines] = useState<Deadline[]>([])
   const [hasDeadlineTypes, setHasDeadlineTypes] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editedName, setEditedName] = useState('')
+
   useEffect(() => {
     const load = async () => {
       if (!entityId) return
 
-      const [resFields, resDeadlines, resTypes] = await Promise.all([
+      const [resEntity, resFields, resDeadlines, resTypes] = await Promise.all([
+        fetch(`/api/entities/${entityId}`),
         fetch(`/api/entity-field-values?entity_id=${entityId}`),
         fetch(`/api/deadlines?entity_id=${entityId}`),
         fetch(`/api/deadline-types`)
       ])
 
-      const [fieldData, deadlineData, typeData] = await Promise.all([
+      const [entityData, fieldData, deadlineData, typeData] = await Promise.all([
+        resEntity.json(),
         resFields.json(),
         resDeadlines.json(),
         resTypes.json()
       ])
 
+      setEntity(entityData)
       setFieldValues(fieldData)
       setDeadlines(deadlineData)
       setHasDeadlineTypes(Array.isArray(typeData) && typeData.length > 0)
@@ -115,7 +132,27 @@ export default function EntityDetailPage() {
     }
   }
 
-  if (loading) {
+  const handleEditClick = () => {
+    if (entity) {
+      setEditedName(entity.name)
+      setEditDialogOpen(true)
+    }
+  }
+
+  const handleSave = async () => {
+    const res = await fetch(`/api/entities/${entityId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editedName })
+    })
+
+    if (res.ok && entity) {
+      setEntity({ ...entity, name: editedName })
+      setEditDialogOpen(false)
+    }
+  }
+
+  if (loading || !entity) {
     return (
       <Container sx={{ mt: 4 }}>
         <Typography>Cargando entidad...</Typography>
@@ -126,8 +163,11 @@ export default function EntityDetailPage() {
   return (
     <Container sx={{ mt: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4">Detalle de entidad</Typography>
+        <Typography variant="h4">{entity.name}</Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" onClick={handleEditClick}>
+            ✏️ Renombrar
+          </Button>
           <Link href={`/entities/${entityId}/edit-info`} passHref>
             <Button variant="outlined">📝 Editar información</Button>
           </Link>
@@ -210,6 +250,26 @@ export default function EntityDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Diálogo para renombrar entidad */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+        <DialogTitle>Editar nombre de la entidad</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            label="Nombre"
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSave}>
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   )
 }

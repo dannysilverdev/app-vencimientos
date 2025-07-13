@@ -3,12 +3,15 @@
   --foreground: #171717;
 }
 
+/* 💬 Si querés eliminar el modo oscuro adaptativo, comentá o borra este bloque */
+/*
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
 }
+*/
 
 html,
 body {
@@ -18,7 +21,7 @@ body {
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background-color: var(--background); /* ✅ Usá background-color explícito */
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -35,8 +38,4 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-}
+/* ❌ Removido: no queremos forzar color-scheme: dark */
