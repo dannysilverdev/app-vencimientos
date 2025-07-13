@@ -1,16 +1,18 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params
+export async function PUT(req, context) {
+  const { id } = context.params
   const body = await req.json()
+
+  const { name, field_type, is_required } = body
 
   const { error } = await supabaseAdmin
     .from('entity_fields')
     .update({
-      name: body.name,
-      field_type: body.field_type,
-      is_required: body.is_required
+      name,
+      field_type,
+      is_required
     })
     .eq('id', id)
 
@@ -21,8 +23,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ success: true })
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params
+export async function DELETE(_, context) {
+  const { id } = context.params
 
   const { error } = await supabaseAdmin
     .from('entity_fields')
