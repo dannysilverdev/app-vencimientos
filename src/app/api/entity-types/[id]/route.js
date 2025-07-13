@@ -1,9 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req, context) {
+  const { id } = context.params
   const { name } = await req.json()
-  const { id } = params
 
   const { error } = await supabaseAdmin
     .from('entity_types')
@@ -17,8 +17,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ success: true })
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params
+export async function DELETE(_, context) {
+  const { id } = context.params
 
   const { error } = await supabaseAdmin
     .from('entity_types')
