@@ -18,7 +18,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import CloseIcon from '@mui/icons-material/Close'
 import Link from 'next/link'
 
-// Íconos para cada ítem
+// Íconos de menú
 import HomeIcon from '@mui/icons-material/Home'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import CategoryIcon from '@mui/icons-material/Category'
@@ -77,7 +77,7 @@ export default function ResponsiveDrawer({
             {open ? <CloseIcon /> : <MenuIcon />}
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            App Vencimientos
+            Deadline Tracker
           </Typography>
         </Toolbar>
       </AppBar>

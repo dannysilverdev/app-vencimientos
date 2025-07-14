@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import {
   Container,
   Typography,
@@ -22,6 +22,8 @@ import {
 import Link from 'next/link'
 import CircleIcon from '@mui/icons-material/Circle'
 import React from 'react'
+
+// Tipado
 
 type FieldValue = {
   id: string
@@ -53,6 +55,7 @@ type Entity = {
 
 export default function EntityDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const entityId = params?.id as string
 
   const [entity, setEntity] = useState<Entity | null>(null)
@@ -63,6 +66,7 @@ export default function EntityDetailPage() {
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -152,6 +156,16 @@ export default function EntityDetailPage() {
     }
   }
 
+  const handleDelete = async () => {
+    const res = await fetch(`/api/entities/${entityId}`, {
+      method: 'DELETE'
+    })
+
+    if (res.ok) {
+      router.push('/')
+    }
+  }
+
   if (loading || !entity) {
     return (
       <Container sx={{ mt: 4 }}>
@@ -164,10 +178,8 @@ export default function EntityDetailPage() {
     <Container sx={{ mt: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h4">{entity.name}</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" onClick={handleEditClick}>
-            ✏️ Renombrar
-          </Button>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button variant="outlined" onClick={handleEditClick}>✏️ Renombrar</Button>
           <Link href={`/entities/${entityId}/edit-info`} passHref>
             <Button variant="outlined">📝 Editar información</Button>
           </Link>
@@ -180,8 +192,39 @@ export default function EntityDetailPage() {
               Debes crear al menos un tipo de vencimiento para poder asignar uno.
             </Alert>
           ) : null}
+          <Button variant="outlined" color="error" onClick={() => setDeleteDialogOpen(true)}>🗑 Eliminar entidad</Button>
         </Box>
       </Box>
+
+      {/* Diálogo editar nombre */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+        <DialogTitle>Editar nombre de la entidad</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            value={editedName}
+            onChange={(e) => setEditedName(e.target.value)}
+            label="Nombre"
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSave}>Guardar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo eliminar */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>¿Eliminar entidad?</DialogTitle>
+        <DialogContent>
+          <Typography>¿Estás seguro de que quieres eliminar esta entidad? Esta acción no se puede deshacer.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={handleDelete}>Eliminar definitivamente</Button>
+        </DialogActions>
+      </Dialog>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -195,9 +238,7 @@ export default function EntityDetailPage() {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {fv.entity_fields.name}
                   </Typography>
-                  <Typography variant="body2">
-                    {fv.value || '—'}
-                  </Typography>
+                  <Typography variant="body2">{fv.value || '—'}</Typography>
                 </React.Fragment>
               ))}
             </Box>
@@ -250,26 +291,6 @@ export default function EntityDetailPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Diálogo para renombrar entidad */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <DialogTitle>Editar nombre de la entidad</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            label="Nombre"
-            autoFocus
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
-            Guardar
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Container>
   )
 }
