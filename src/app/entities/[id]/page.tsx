@@ -22,6 +22,7 @@ import {
 import Link from 'next/link'
 import CircleIcon from '@mui/icons-material/Circle'
 import React from 'react'
+import UsageLogFormForEntity from '@/components/UsageLogFormForEntity'
 
 // Tipado
 
@@ -51,6 +52,7 @@ type Deadline = {
 type Entity = {
   id: string
   name: string
+  tracks_usage?: boolean
 }
 
 export default function EntityDetailPage() {
@@ -226,6 +228,7 @@ export default function EntityDetailPage() {
         </DialogActions>
       </Dialog>
 
+      {/* Campos personalizados */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>Campos personalizados</Typography>
@@ -246,6 +249,16 @@ export default function EntityDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Formulario de registro de uso acumulado */}
+      {entity.tracks_usage && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <UsageLogFormForEntity entityId={entity.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Vencimientos */}
       <Card>
         <CardContent>
           <Typography variant="h6">Vencimientos</Typography>

@@ -8,7 +8,9 @@ import {
   Box,
   TextField,
   Button,
-  Alert
+  Alert,
+  Switch,
+  FormControlLabel
 } from '@mui/material'
 
 type Field = {
@@ -28,6 +30,7 @@ type Entity = {
   id: string
   name: string
   type_id: string
+  tracks_usage?: boolean
 }
 
 export default function EditEntityInfoPage() {
@@ -38,6 +41,7 @@ export default function EditEntityInfoPage() {
   const [entity, setEntity] = useState<Entity | null>(null)
   const [fields, setFields] = useState<Field[]>([])
   const [values, setValues] = useState<Record<string, string>>({})
+  const [tracksUsage, setTracksUsage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,7 +62,9 @@ export default function EditEntityInfoPage() {
           setLoading(false)
           return
         }
+
         setEntity(entityData)
+        setTracksUsage(entityData.tracks_usage ?? false)
 
         const [fieldRes, valueRes] = await Promise.all([
           fetch(`/api/entity-fields?entity_type_id=${entityData.type_id}`),
@@ -103,6 +109,15 @@ export default function EditEntityInfoPage() {
       })
     })
 
+    // Actualizar tracks_usage en la entidad
+    await fetch(`/api/entities/${entityId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tracks_usage: tracksUsage
+      })
+    })
+
     router.push(`/entities/${entityId}`)
   }
 
@@ -119,6 +134,17 @@ export default function EditEntityInfoPage() {
       ) : entity ? (
         <>
           <Typography variant="subtitle1" gutterBottom>{entity.name}</Typography>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={tracksUsage}
+                onChange={(e) => setTracksUsage(e.target.checked)}
+              />
+            }
+            label="¿Registrar uso acumulado?"
+            sx={{ mt: 2 }}
+          />
 
           {fields.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>

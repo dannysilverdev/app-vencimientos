@@ -27,8 +27,8 @@ import ScheduleIcon from '@mui/icons-material/Schedule'
 const drawerWidth = 240
 
 const navItems = [
-  { text: 'Nueva Entidad', href: '/entities/new', icon: <AddCircleOutlineIcon /> },
   { text: 'Dashboard', href: '/', icon: <HomeIcon /> },
+  { text: 'Nueva Entidad', href: '/entities/new', icon: <AddCircleOutlineIcon /> },
   { text: 'Tipos de Entidad', href: '/entity-types', icon: <CategoryIcon /> },
   { text: 'Tipos de Vencimiento', href: '/deadline-types', icon: <ScheduleIcon /> }
 ]
