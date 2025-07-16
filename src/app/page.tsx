@@ -146,8 +146,8 @@ export default function HomePage() {
   const allTypes = Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
 
   return (
-    <Container sx={{ mt: 4, maxWidth: '100%' }}>
-      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
+    <Container sx={{ mt: 4, maxWidth: "100%" }}>
+      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
         {allTypes.map(type => (
           <Chip
             key={type}
@@ -191,19 +191,19 @@ export default function HomePage() {
       </Typography>
 
       <Box sx={{ display: "flex", gap: 2, mb: 4 }}>
-        <Box sx={{ flex: 1, p: 2, bgcolor: "#f1f1f1", borderRadius: 2 }}>
+        <Box sx={{ flex: 1, p: 2, border: "1px solid #d0d0d0", borderRadius: 2 }}>
           <CheckCircle color="green" size={20} />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Al día: {good}
           </Typography>
         </Box>
-        <Box sx={{ flex: 1, p: 2, bgcolor: "#fff5e0", borderRadius: 2 }}>
+        <Box sx={{ flex: 1, p: 2, border: "1px solid #f5c96b", borderRadius: 2 }}>
           <AlertTriangle color="orange" size={20} />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Pronto: {warning}
           </Typography>
         </Box>
-        <Box sx={{ flex: 1, p: 2, bgcolor: "#ffe0e0", borderRadius: 2 }}>
+        <Box sx={{ flex: 1, p: 2, border: "1px solid #f08c8c", borderRadius: 2 }}>
           <XCircle color="red" size={20} />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Vencidas: {overdue}
@@ -219,7 +219,14 @@ export default function HomePage() {
               {typeName}
             </Typography>
 
-            <Stack direction="row" flexWrap="wrap" gap={3}>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 2,
+                alignItems: "stretch"
+              }}
+            >
               {group
                 .filter(entity => {
                   if (selectedStatus === "all") return true
@@ -240,20 +247,18 @@ export default function HomePage() {
                     <Box
                       key={entity.id}
                       sx={{
-                        width: {
-                          xs: "100%",
-                          sm: "48%",
-                          md: "31%",
-                          lg: "23%"
-                        },
-                        background: "linear-gradient(to top left, #f7f7f7, #e0e0e0)",
+                        flex: "1 1 300px",
+                        maxWidth: 360,
+                        border: "1px solid #ddd",
                         borderRadius: 3,
                         p: 2,
-                        boxShadow: 4,
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "space-between",
-                        minHeight: 140
+                        height: "100%",
+                        alignSelf: "stretch",
+                        transition: "box-shadow 0.2s",
+                        ":hover": { boxShadow: 6 }
                       }}
                     >
                       <Typography variant="h6" sx={{ fontWeight: 600 }} noWrap gutterBottom>
@@ -277,7 +282,7 @@ export default function HomePage() {
                     </Box>
                   )
                 })}
-            </Stack>
+            </Box>
           </Box>
         ))}
     </Container>

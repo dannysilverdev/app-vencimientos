@@ -1,8 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { NextResponse } from 'next/server'
 
-export async function GET(_, context) {
-  const { id } = context.params
+export async function GET(_req, context) {
+  const params = await context.params
+  const id = params.id
 
   const { data, error } = await supabaseAdmin
     .from('entities')
@@ -21,7 +22,8 @@ export async function GET(_, context) {
 }
 
 export async function PUT(req, context) {
-  const { id } = context.params
+  const params = await context.params
+  const id = params.id
   const body = await req.json()
 
   const { error } = await supabaseAdmin
@@ -36,8 +38,9 @@ export async function PUT(req, context) {
   return NextResponse.json({ success: true })
 }
 
-export async function DELETE(_, context) {
-  const { id } = context.params
+export async function DELETE(_req, context) {
+  const params = await context.params
+  const id = params.id
 
   const { error } = await supabaseAdmin
     .from('entities')
