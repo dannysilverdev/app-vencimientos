@@ -1,5 +1,4 @@
-
-"use client"
+'use client'
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -35,7 +34,6 @@ import {
 } from "@mui/icons-material"
 import UsageLogFormForEntity from '@/components/UsageLogFormForEntity'
 
-// Tipos para los datos que maneja la entidad
 type Field = {
   id: string
   name: string
@@ -103,7 +101,6 @@ export default function EditEntityPage() {
   const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null)
   const [editingDeadlineValues, setEditingDeadlineValues] = useState<EditingDeadlineValues>({})
 
-  // Carga inicial de datos de la entidad
   useEffect(() => {
     const loadAll = async () => {
       if (!entityId) return
@@ -156,7 +153,6 @@ export default function EditEntityPage() {
     loadAll()
   }, [entityId])
 
-  // Guardar cambios de la entidad y sus campos personalizados
   const handleSubmit = async () => {
     try {
       await fetch(`/api/entities/${entityId}`, {
@@ -181,14 +177,52 @@ export default function EditEntityPage() {
         })
       })
 
-      router.push(`/entities/${entityId}`)
+      router.push('/manage')
     } catch (err) {
       console.error(err)
       setError('Error al guardar los cambios.')
     }
   }
 
-  // Cálculo del estado y vencimiento estimado de un vencimiento
+  const handleEditDeadline = (d: Deadline) => {
+    setEditingDeadlineId(d.id)
+    setEditingDeadlineValues({
+      frequency: d.frequency,
+      last_done: d.last_done,
+      usage_daily_average: d.usage_daily_average
+    })
+  }
+
+  const handleSaveDeadline = async () => {
+    if (!editingDeadlineId) return
+
+    const payload = {
+      frequency: editingDeadlineValues.frequency ?? 0,
+      last_done: editingDeadlineValues.last_done ?? '',
+      usage_daily_average: editingDeadlineValues.usage_daily_average ?? null
+    }
+
+    try {
+      const res = await fetch(`/api/deadlines/${editingDeadlineId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (!res.ok) throw new Error('Error al guardar vencimiento')
+
+      const refreshed = await fetch(`/api/deadlines?entity_id=${entityId}`)
+      const newData = await refreshed.json()
+      setDeadlines(newData)
+
+      setEditingDeadlineId(null)
+      setEditingDeadlineValues({})
+    } catch (error) {
+      console.error('Error actualizando vencimiento:', error)
+      setError('No se pudo guardar el vencimiento. Revisa los datos.')
+    }
+  }
+
   const getDeadlineStatus = (d: Deadline): 'red' | 'yellow' | 'green' => {
     const today = new Date()
     const last = new Date(d.last_done)
@@ -220,10 +254,8 @@ export default function EditEntityPage() {
     return est.toISOString().split('T')[0]
   }
 
-  // Mostrar pantalla de carga mientras se obtienen los datos
   if (loading || !entity) return <Container sx={{ mt: 4 }}><Typography>Cargando...</Typography></Container>
 
-  // Render principal
   return (
     <Container sx={{ mt: 4, maxWidth: 600 }}>
       <Typography variant="h5" gutterBottom>Editar entidad</Typography>
@@ -231,10 +263,8 @@ export default function EditEntityPage() {
       {error && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
 
       <Box display="flex" flexDirection="column" gap={2}>
-        {/* Nombre de la entidad */}
         <TextField label="Nombre" value={editedName} onChange={(e) => setEditedName(e.target.value)} fullWidth />
 
-        {/* Selección del tipo de entidad */}
         <FormControl fullWidth>
           <InputLabel>Tipo de entidad</InputLabel>
           <Select value={editedTypeId} onChange={(e) => setEditedTypeId(e.target.value)} label="Tipo de entidad">
@@ -244,7 +274,6 @@ export default function EditEntityPage() {
           </Select>
         </FormControl>
 
-        {/* Campos personalizados */}
         {fields.length > 0 && (
           <>
             <Typography variant="h6">Campos personalizados</Typography>
@@ -267,27 +296,109 @@ export default function EditEntityPage() {
           </>
         )}
 
-        {/* Botón guardar cambios */}
-        <Box mt={1}>
+        <Box mt={3}>
           <Button variant="contained" onClick={handleSubmit} startIcon={<SaveIcon />}>Guardar</Button>
         </Box>
 
-        {/* Switch para activar registro de uso y formulario */}
-        <Box mt={2}>
-          <FormControlLabel
-            control={<Switch checked={tracksUsage} onChange={(e) => setTracksUsage(e.target.checked)} />}
-            label="¿Registrar uso acumulado?"
-          />
-          {tracksUsage && <UsageLogFormForEntity entityId={entity.id} />}
-        </Box>
+        <FormControlLabel
+          control={<Switch checked={tracksUsage} onChange={(e) => setTracksUsage(e.target.checked)} />}
+          label="¿Registrar uso acumulado?"
+        />
 
-        {/* Vencimientos */}
+        {tracksUsage && entity?.id && (
+          <Card sx={{ mt: 5 }}>
+            <CardHeader title="Registro de uso acumulado" avatar={<FileIcon />} />
+            <CardContent>
+              <UsageLogFormForEntity entityId={entity.id} />
+            </CardContent>
+          </Card>
+        )}
+
         <Card sx={{ mt: 5 }}>
           <CardHeader title="Vencimientos" avatar={<CalendarIcon />} />
           <CardContent>
-            <Typography variant="body2" color="text.secondary">
-              Los vencimientos pueden gestionarse aquí.
-            </Typography>
+            {deadlines.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">Sin vencimientos asignados aún.</Typography>
+            ) : (
+              <Stack spacing={2}>
+                {deadlines.map((d) => {
+                  const status = getDeadlineStatus(d)
+                  const estimated = getEstimatedDate(d)
+                  const color = status === 'red' ? 'error.main' : status === 'yellow' ? 'warning.main' : 'success.main'
+
+                  return (
+                    <Box key={d.id} display="flex" gap={2} alignItems="start" p={2} border={1} borderColor="divider" borderRadius={2}>
+                      <CircleIcon sx={{ fontSize: 12, color, mt: '4px' }} />
+                      <Box flex={1}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                          <Typography variant="subtitle1">{d.deadline_types.name}</Typography>
+                          <Stack direction="row" spacing={1}>
+                            <Chip
+                              label={status === 'red' ? 'Vencido' : status === 'yellow' ? 'Próximo' : 'Al día'}
+                              color={status === 'red' ? 'error' : status === 'yellow' ? 'warning' : 'success'}
+                              size="small"
+                            />
+                            <Button size="small" variant="outlined" onClick={() => handleEditDeadline(d)}>Editar</Button>
+                          </Stack>
+                        </Box>
+                        {editingDeadlineId === d.id ? (
+                          <Box>
+                            <TextField
+                              label="Frecuencia"
+                              type="number"
+                              value={editingDeadlineValues.frequency !== undefined ? String(editingDeadlineValues.frequency) : ''}
+                              onChange={(e) => {
+                                const value = e.target.value
+                                setEditingDeadlineValues((prev: EditingDeadlineValues) => ({
+                                  ...prev,
+                                  frequency: value === '' ? '' : parseInt(value)
+                                }))
+                              }}
+                              fullWidth sx={{ mt: 1 }}
+                            />
+                            <TextField
+                              label="Último realizado"
+                              type="date"
+                              value={editingDeadlineValues.last_done || ''}
+                              onChange={(e) => setEditingDeadlineValues((prev) => ({ ...prev, last_done: e.target.value }))}
+                              InputLabelProps={{ shrink: true }}
+                              fullWidth sx={{ mt: 1 }}
+                            />
+                            {d.deadline_types.measure_by === 'usage' && (
+                              <TextField
+                                label="Promedio diario"
+                                type="number"
+                                value={editingDeadlineValues.usage_daily_average !== undefined ? String(editingDeadlineValues.usage_daily_average) : ''}
+                                onChange={(e) => {
+                                  const value = e.target.value
+                                  setEditingDeadlineValues((prev: EditingDeadlineValues) => ({
+                                    ...prev,
+                                    usage_daily_average: value === '' ? null : parseFloat(value)
+                                  }))
+                                }}
+                                fullWidth sx={{ mt: 1 }}
+                              />
+                            )}
+                            <Box mt={1}>
+                              <Button onClick={handleSaveDeadline} variant="contained" size="small">Guardar cambios</Button>
+                            </Box>
+                          </Box>
+                        ) : (
+                          <>
+                            <Typography variant="body2" color="text.secondary">
+                              {d.deadline_types.measure_by === 'date'
+                                ? `Último: ${d.last_done} • Frecuencia: ${d.frequency} días`
+                                : `Último: ${d.last_done} • Cada ${d.frequency} ${d.frequency_unit} • Promedio diario: ${d.usage_daily_average ?? '—'}`}
+                            </Typography>
+                            <Typography variant="body2">Fecha estimada de vencimiento: <strong>{estimated}</strong></Typography>
+                          </>
+                        )}
+                      </Box>
+                    </Box>
+                  )
+                })}
+              </Stack>
+            )}
           </CardContent>
         </Card>
       </Box>

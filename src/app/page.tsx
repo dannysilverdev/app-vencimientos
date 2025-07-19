@@ -7,15 +7,19 @@ import {
   Stack,
   Typography,
   Box,
-  IconButton
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Button
 } from "@mui/material"
 import Link from "next/link"
 import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  ArrowRightCircle,
-  Circle
+  Circle,
+  Pencil
 } from "lucide-react"
 
 type Entity = {
@@ -50,12 +54,13 @@ type DeadlineStatus = {
 export default function HomePage() {
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "warning" | "overdue">("all")
-
   const [entities, setEntities] = useState<Entity[]>([])
   const [deadlinesByEntity, setDeadlinesByEntity] = useState<Record<string, Deadline[]>>({})
   const [good, setGood] = useState(0)
   const [warning, setWarning] = useState(0)
   const [overdue, setOverdue] = useState(0)
+
+  const [openEntityId, setOpenEntityId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch("/api/entities")
@@ -145,6 +150,9 @@ export default function HomePage() {
 
   const allTypes = Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
 
+  const selectedEntity = entities.find(e => e.id === openEntityId)
+  const selectedDeadlines = openEntityId ? deadlinesByEntity[openEntityId] || [] : []
+
   return (
     <Container sx={{ mt: 4, maxWidth: "100%" }}>
       <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
@@ -160,73 +168,21 @@ export default function HomePage() {
       </Stack>
 
       <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
-        <Chip
-          label="Todos"
-          onClick={() => setSelectedStatus("all")}
-          color={selectedStatus === "all" ? "primary" : "default"}
-          icon={<Circle style={{ fontSize: 12 }} />}
-        />
-        <Chip
-          label="Al día"
-          onClick={() => setSelectedStatus("good")}
-          color={selectedStatus === "good" ? "success" : "default"}
-          icon={<CheckCircle size={14} />}
-        />
-        <Chip
-          label="Pronto"
-          onClick={() => setSelectedStatus("warning")}
-          color={selectedStatus === "warning" ? "warning" : "default"}
-          icon={<AlertTriangle size={14} />}
-        />
-        <Chip
-          label="Vencidas"
-          onClick={() => setSelectedStatus("overdue")}
-          color={selectedStatus === "overdue" ? "error" : "default"}
-          icon={<XCircle size={14} />}
-        />
+        <Chip label="Todos" onClick={() => setSelectedStatus("all")} color={selectedStatus === "all" ? "primary" : "default"} icon={<Circle style={{ fontSize: 12 }} />} />
+        <Chip label="Al día" onClick={() => setSelectedStatus("good")} color={selectedStatus === "good" ? "success" : "default"} icon={<CheckCircle size={14} />} />
+        <Chip label="Pronto" onClick={() => setSelectedStatus("warning")} color={selectedStatus === "warning" ? "warning" : "default"} icon={<AlertTriangle size={14} />} />
+        <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
       </Stack>
 
-      <Typography variant="h4" gutterBottom>
-        Entidades registradas
-      </Typography>
-
-      <Box sx={{ display: "flex", gap: 2, mb: 4 }}>
-        <Box sx={{ flex: 1, p: 2, border: "1px solid #d0d0d0", borderRadius: 2 }}>
-          <CheckCircle color="green" size={20} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Al día: {good}
-          </Typography>
-        </Box>
-        <Box sx={{ flex: 1, p: 2, border: "1px solid #f5c96b", borderRadius: 2 }}>
-          <AlertTriangle color="orange" size={20} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Pronto: {warning}
-          </Typography>
-        </Box>
-        <Box sx={{ flex: 1, p: 2, border: "1px solid #f08c8c", borderRadius: 2 }}>
-          <XCircle color="red" size={20} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Vencidas: {overdue}
-          </Typography>
-        </Box>
-      </Box>
+      <Typography variant="h4" gutterBottom>Panel de monitoreo</Typography>
 
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
           <Box key={typeName} sx={{ mb: 5 }}>
-            <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>
-              {typeName}
-            </Typography>
+            <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>{typeName}</Typography>
 
-            <Box
-              sx={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 2,
-                alignItems: "stretch"
-              }}
-            >
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
               {group
                 .filter(entity => {
                   if (selectedStatus === "all") return true
@@ -256,10 +212,10 @@ export default function HomePage() {
                         flexDirection: "column",
                         justifyContent: "space-between",
                         height: "100%",
-                        alignSelf: "stretch",
-                        transition: "box-shadow 0.2s",
+                        cursor: "pointer",
                         ":hover": { boxShadow: 6 }
                       }}
+                      onClick={() => setOpenEntityId(entity.id)}
                     >
                       <Typography variant="h6" sx={{ fontWeight: 600 }} noWrap gutterBottom>
                         {entity.name}
@@ -271,20 +227,53 @@ export default function HomePage() {
                           <Typography variant="body2">{status.text}</Typography>
                         </Box>
                       )}
-
-                      <Box sx={{ mt: "auto", display: "flex", justifyContent: "flex-end" }}>
-                        <Link href={`/entities/${entity.id}`} passHref>
-                          <IconButton>
-                            <ArrowRightCircle size={20} />
-                          </IconButton>
-                        </Link>
-                      </Box>
                     </Box>
                   )
                 })}
             </Box>
           </Box>
         ))}
+
+      <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Ficha de entidad
+          {selectedEntity && (
+            <Link href={`/entities/${selectedEntity.id}/edit`} passHref>
+              <IconButton sx={{ ml: 1 }} size="small">
+                <Pencil size={18} />
+              </IconButton>
+            </Link>
+          )}
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedEntity && (
+            <Box>
+              <Typography variant="h6">{selectedEntity.name}</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
+                Tipo: {selectedEntity.entity_types?.name || "Sin tipo"}
+              </Typography>
+              {selectedDeadlines.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Sin vencimientos.</Typography>
+              ) : (
+                selectedDeadlines.map(d => {
+                  const status = getDeadlineStatus(d)
+                  return (
+                    <Box key={d.id} sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2">{d.deadline_types.name}</Typography>
+                      <Typography variant="body2" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        {status.icon} Estimado: {status.text}
+                      </Typography>
+                    </Box>
+                  )
+                })
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <Box sx={{ p: 2, display: "flex", justifyContent: "flex-end" }}>
+          <Button onClick={() => setOpenEntityId(null)}>Cerrar</Button>
+        </Box>
+      </Dialog>
     </Container>
   )
 }

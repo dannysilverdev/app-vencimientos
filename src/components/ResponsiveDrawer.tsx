@@ -23,11 +23,13 @@ import HomeIcon from '@mui/icons-material/Home'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import CategoryIcon from '@mui/icons-material/Category'
 import ScheduleIcon from '@mui/icons-material/Schedule'
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts' // nuevo ícono
 
 const drawerWidth = 240
 
 const navItems = [
   { text: 'Dashboard', href: '/', icon: <HomeIcon /> },
+  { text: 'Gestor de Entidades', href: '/manage', icon: <ManageAccountsIcon /> }, // nuevo ítem
   { text: 'Nueva Entidad', href: '/entities/new', icon: <AddCircleOutlineIcon /> },
   { text: 'Tipos de Entidad', href: '/entity-types', icon: <CategoryIcon /> },
   { text: 'Tipos de Vencimiento', href: '/deadline-types', icon: <ScheduleIcon /> }
