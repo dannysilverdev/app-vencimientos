@@ -1,12 +1,16 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { NextRequest, NextResponse } from 'next/server'
 
-// GET individual deadline by ID
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params
+// Helper para extraer ID desde la URL
+function extractId(req: NextRequest): string | null {
+  const url = req.nextUrl.pathname
+  const match = url.match(/\/api\/deadlines\/([^\/]+)/)
+  return match?.[1] ?? null
+}
+
+export async function GET(req: NextRequest) {
+  const id = extractId(req)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
     .from('deadlines')
@@ -24,12 +28,10 @@ export async function GET(
   return NextResponse.json(data)
 }
 
-// PUT update deadline
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params
+export async function PUT(req: NextRequest) {
+  const id = extractId(req)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+
   const body = await req.json()
 
   const { error } = await supabaseAdmin
@@ -44,12 +46,9 @@ export async function PUT(
   return NextResponse.json({ success: true })
 }
 
-// DELETE deadline
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { id } = params
+export async function DELETE(req: NextRequest) {
+  const id = extractId(req)
+  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
   const { error } = await supabaseAdmin
     .from('deadlines')
