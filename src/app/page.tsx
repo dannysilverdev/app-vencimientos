@@ -17,7 +17,7 @@ import {
   CheckCircle,
   XCircle,
   Circle,
-  Info
+  Pencil
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -244,7 +244,7 @@ export default function HomePage() {
               sx={{ ml: 2 }}
               title="Editar entidad"
             >
-              <Info size={18} />
+              <Pencil size={18} />
             </IconButton>
           )}
         </DialogTitle>

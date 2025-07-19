@@ -29,8 +29,7 @@ const drawerWidth = 240
 
 const navItems = [
   { text: 'Dashboard', href: '/', icon: <HomeIcon /> },
-  { text: 'Gestor de Entidades', href: '/manage', icon: <ManageAccountsIcon /> }, // nuevo ítem
-  { text: 'Nueva Entidad', href: '/entities/new', icon: <AddCircleOutlineIcon /> },
+  { text: 'Gestor de Entidades', href: '/manage', icon: <ManageAccountsIcon /> },
   { text: 'Tipos de Entidad', href: '/entity-types', icon: <CategoryIcon /> },
   { text: 'Tipos de Vencimiento', href: '/deadline-types', icon: <ScheduleIcon /> }
 ]
@@ -103,7 +102,7 @@ export default function ResponsiveDrawer({
         sx={{
           flexGrow: 1,
           p: 3,
-          mt: 8
+          mt: 5
         }}
       >
         {children}
