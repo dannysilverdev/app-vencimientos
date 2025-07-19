@@ -1,24 +1,64 @@
-import { NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const id = params.id
-  const body = await req.json()
+// GET individual deadline by ID
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params
 
   const { data, error } = await supabaseAdmin
-    .from("deadlines")
-    .update({
-      frequency: body.frequency,
-      last_done: body.last_done,
-      usage_daily_average: body.usage_daily_average
-    })
-    .eq("id", id)
-    .select()
+    .from('deadlines')
+    .select('*')
+    .eq('id', id)
+    .single()
 
-  if (error) {
-    console.error("Error actualizando vencimiento:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error || !data) {
+    return NextResponse.json(
+      { error: error?.message || 'Vencimiento no encontrado' },
+      { status: 404 }
+    )
   }
 
   return NextResponse.json(data)
+}
+
+// PUT update deadline
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params
+  const body = await req.json()
+
+  const { error } = await supabaseAdmin
+    .from('deadlines')
+    .update(body)
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
+
+// DELETE deadline
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params
+
+  const { error } = await supabaseAdmin
+    .from('deadlines')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
 }
