@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import {
-  Container,
   Chip,
   Stack,
   Typography,
@@ -10,14 +9,24 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton
+  IconButton,
+  Divider,
+  Card,
+  CardContent,
+  CardHeader,
+  Button
 } from "@mui/material"
 import {
   AlertTriangle,
   CheckCircle,
   XCircle,
   Circle,
-  Pencil
+  Pencil,
+  Calendar,
+  Clock,
+  Info,
+  Tag,
+  User
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -25,9 +34,7 @@ type Entity = {
   id: string
   name: string
   type_id: string
-  entity_types?: {
-    name: string
-  }
+  entity_types?: { name: string }
 }
 
 type FieldValue = {
@@ -63,14 +70,9 @@ type DeadlineStatus = {
 export default function HomePage() {
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "warning" | "overdue">("all")
-
   const [entities, setEntities] = useState<Entity[]>([])
   const [deadlinesByEntity, setDeadlinesByEntity] = useState<Record<string, Deadline[]>>({})
   const [fieldValuesByEntity, setFieldValuesByEntity] = useState<Record<string, FieldValue[]>>({})
-  const [good, setGood] = useState(0)
-  const [warning, setWarning] = useState(0)
-  const [overdue, setOverdue] = useState(0)
-
   const [openEntityId, setOpenEntityId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -105,26 +107,6 @@ export default function HomePage() {
       loadRelated()
     }
   }, [entities])
-
-  useEffect(() => {
-    let goodCount = 0
-    let warningCount = 0
-    let overdueCount = 0
-
-    entities.forEach(entity => {
-      const deadlines = deadlinesByEntity[entity.id] || []
-      if (deadlines.length > 0) {
-        const status = getDeadlineStatus(deadlines[0])
-        if (status.variant === "destructive") overdueCount++
-        else if (status.variant === "secondary") warningCount++
-        else goodCount++
-      }
-    })
-
-    setGood(goodCount)
-    setWarning(warningCount)
-    setOverdue(overdueCount)
-  }, [entities, deadlinesByEntity])
 
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const today = new Date()
@@ -167,6 +149,10 @@ export default function HomePage() {
   }, {})
 
   const allTypes = Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
+
+  const openEntity = openEntityId ? entities.find(e => e.id === openEntityId) : null
+  const openFields = openEntityId ? fieldValuesByEntity[openEntityId] || [] : []
+  const openDeadlines = openEntityId ? deadlinesByEntity[openEntityId] || [] : []
 
   return (
     <Box sx={{ mt: 4, width: "100%", px: { xs: 0, sm: 3 }, maxWidth: 1200, mx: "auto" }}>
@@ -233,66 +219,101 @@ export default function HomePage() {
           </Box>
         ))}
 
-      <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          Ficha de entidad
-          {openEntityId && (
-            <IconButton
-              href={`/entities/${openEntityId}/edit`}
-              component="a"
-              size="small"
-              sx={{ ml: 2 }}
-              title="Editar entidad"
+<Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
+  <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <Box display="flex" alignItems="center" gap={1}>
+      <User size={20} />
+      Ficha de entidad
+    </Box>
+    {openEntityId && (
+      <IconButton
+        href={`/entities/${openEntityId}/edit`}
+        component="a"
+        size="small"
+        title="Editar entidad"
+      >
+        <Pencil size={18} />
+      </IconButton>
+    )}
+  </DialogTitle>
+
+  <DialogContent dividers>
+    {openEntity && (
+      <Box display="flex" flexDirection="column" gap={3}>
+        {/* Sección tipo */}
+        <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+          <Typography
+            variant="subtitle2"
+            color="text.secondary"
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <Tag size={16} />
+            Tipo de entidad
+          </Typography>
+          <Typography variant="body2" fontWeight="500">
+            {openEntity.entity_types?.name || "Sin tipo"}
+          </Typography>
+        </Box>
+
+        {/* Sección campos personalizados */}
+        {openFields.length > 0 && (
+          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+            <Typography
+              variant="subtitle2"
+              color="text.secondary"
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
             >
-              <Pencil size={18} />
-            </IconButton>
-          )}
-        </DialogTitle>
+              <Info size={16} />
+              Información personalizada
+            </Typography>
+            <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
+              {openFields.map((f) => (
+                <li key={f.id}>
+                  <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
+                    <Typography fontWeight={500}>{f.entity_fields.name}</Typography>
+                    <Typography>{f.value || "—"}</Typography>
+                  </Box>
+                </li>
+              ))}
+            </Box>
+          </Box>
+        )}
 
-        <DialogContent dividers>
-          {openEntityId && (() => {
-            const entity = entities.find(e => e.id === openEntityId)
-            const fields = fieldValuesByEntity[openEntityId] || []
-            const deadlines = deadlinesByEntity[openEntityId] || []
+        {/* Sección vencimientos */}
+        {openDeadlines.length > 0 && (
+          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+            <Typography
+              variant="subtitle2"
+              color="text.secondary"
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <Calendar size={16} />
+              Vencimientos
+            </Typography>
+            <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
+              {openDeadlines.map((d) => {
+                const status = getDeadlineStatus(d)
+                return (
+                  <li key={d.id}>
+                    <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
+                      <Typography>{d.deadline_types.name}</Typography>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <Clock size={12} />
+                        <Typography variant="caption">{status.text}</Typography>
+                      </Box>
+                    </Box>
+                  </li>
+                )
+              })}
+            </Box>
+          </Box>
+        )}
+      </Box>
+    )}
+  </DialogContent>
+</Dialog>
 
-            return (
-              <>
-                <Typography variant="h6">{entity?.name}</Typography>
-                <Typography variant="body2" gutterBottom>
-                  Tipo: {entity?.entity_types?.name || "Sin tipo"}
-                </Typography>
 
-                {fields.length > 0 && (
-                  <>
-                    <Typography variant="subtitle1" sx={{ mt: 2 }}>Información personalizada</Typography>
-                    {fields.map(f => (
-                      <Typography key={f.id} variant="body2">
-                        • {f.entity_fields.name}: {f.value || "—"}
-                      </Typography>
-                    ))}
-                  </>
-                )}
-
-                {deadlines.length > 0 && (
-                  <>
-                    <Typography variant="subtitle1" sx={{ mt: 2 }}>Vencimientos</Typography>
-                    {deadlines.map(d => {
-                      const status = getDeadlineStatus(d)
-                      return (
-                        <Box key={d.id} sx={{ mb: 1 }}>
-                          <Typography variant="body2">
-                            • {d.deadline_types.name} — {status.text} ({status.variant === "destructive" ? "Vencido" : status.variant === "secondary" ? "Próximo" : "Al día"})
-                          </Typography>
-                        </Box>
-                      )
-                    })}
-                  </>
-                )}
-              </>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
     </Box>
   )
 }
