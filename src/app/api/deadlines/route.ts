@@ -46,8 +46,26 @@ export async function POST(req: NextRequest) {
     usage_daily_average
   } = await req.json()
 
-  if (!entity_id || !type_id || !last_done || !frequency || !frequency_unit) {
+  if (!entity_id || !type_id || !last_done || !frequency) {
     return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
+  }
+
+  const { data: deadlineType, error: typeError } = await supabaseAdmin
+    .from('deadline_types')
+    .select('measure_by')
+    .eq('id', type_id)
+    .single()
+
+  if (typeError) {
+    return NextResponse.json({ error: typeError.message }, { status: 500 })
+  }
+
+  const measureBy = deadlineType?.measure_by
+
+  if (measureBy === 'usage') {
+    if (!frequency_unit || usage_daily_average == null) {
+      return NextResponse.json({ error: 'Faltan campos de uso para vencimientos por uso.' }, { status: 400 })
+    }
   }
 
   const { data, error } = await supabaseAdmin
@@ -57,8 +75,8 @@ export async function POST(req: NextRequest) {
       type_id,
       last_done,
       frequency,
-      frequency_unit,
-      usage_daily_average
+      frequency_unit: measureBy === 'usage' ? frequency_unit : null,
+      usage_daily_average: measureBy === 'usage' ? usage_daily_average : null
     }])
     .select()
 
