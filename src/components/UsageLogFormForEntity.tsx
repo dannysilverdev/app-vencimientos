@@ -72,7 +72,8 @@ export default function UsageLogFormForEntity({ entityId }: { entityId: string }
         <TextField
           label="Valor acumulado (ej: km, horas, etc)"
           type="number"
-          value={value}
+          value={isNaN(value as number) ? '' : value}
+
           onChange={(e) => setValue(parseFloat(e.target.value))}
         />
 

@@ -9,19 +9,14 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton,
-  Divider,
-  Card,
-  CardContent,
-  CardHeader,
-  Button
+  IconButton
 } from "@mui/material"
 import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Circle,
   Pencil,
+  Circle,
   Calendar,
   Clock,
   Info,
@@ -29,6 +24,7 @@ import {
   User
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
+import EntityCard from "@/components/EntityCard"
 
 type Entity = {
   id: string
@@ -141,6 +137,12 @@ export default function HomePage() {
     }
   }
 
+  function getEntityStatus(deadlines: DeadlineStatus[]): "good" | "warning" | "overdue" {
+    if (deadlines.some(d => d.variant === "destructive")) return "overdue"
+    if (deadlines.some(d => d.variant === "secondary")) return "warning"
+    return "good"
+  }
+
   const grouped = entities.reduce<Record<string, Entity[]>>((acc, entity) => {
     const typeName = entity.entity_types?.name || "Sin clasificar"
     if (!acc[typeName]) acc[typeName] = []
@@ -175,8 +177,6 @@ export default function HomePage() {
         <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
       </Stack>
 
-      <Typography variant="h4" gutterBottom>Entidades registradas</Typography>
-
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
@@ -185,135 +185,113 @@ export default function HomePage() {
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "center" }}>
               {group.map(entity => {
                 const deadlines = deadlinesByEntity[entity.id] || []
-                const status = deadlines.length > 0 ? getDeadlineStatus(deadlines[0]) : null
+                const deadlineWithStatus = deadlines.map(d => ({ ...d, status: getDeadlineStatus(d) }))
+                const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status))
+                if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
                 return (
-                  <Box
+                  <EntityCard
                     key={entity.id}
-                    sx={{
-                      flex: { xs: "1 1 100%", sm: "1 1 300px" },
-                      maxWidth: { xs: "100%", sm: 360 },
-                      border: "1px solid #ddd",
-                      borderRadius: 3,
-                      p: 2,
-                      cursor: "pointer",
-                      transition: "box-shadow 0.2s",
-                      ":hover": { boxShadow: 6 }
-                    }}
+                    entity={entity}
+                    deadlines={deadlineWithStatus}
                     onClick={() => setOpenEntityId(entity.id)}
-                  >
-                    <Typography variant="h6" sx={{ fontWeight: 600 }} noWrap gutterBottom>
-                      {entity.name}
-                    </Typography>
-
-                    {status && (
-                      <Box sx={{ display: "flex", alignItems: "center", mb: 2, gap: 1 }}>
-                        {status.icon}
-                        <Typography variant="body2">{status.text}</Typography>
-                      </Box>
-                    )}
-                  </Box>
+                  />
                 )
               })}
             </Box>
           </Box>
         ))}
 
-<Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
-  <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-    <Box display="flex" alignItems="center" gap={1}>
-      <User size={20} />
-      Ficha de entidad
-    </Box>
-    {openEntityId && (
-      <IconButton
-        href={`/entities/${openEntityId}/edit`}
-        component="a"
-        size="small"
-        title="Editar entidad"
-      >
-        <Pencil size={18} />
-      </IconButton>
-    )}
-  </DialogTitle>
-
-  <DialogContent dividers>
-    {openEntity && (
-      <Box display="flex" flexDirection="column" gap={3}>
-        {/* Sección tipo */}
-        <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-          <Typography
-            variant="subtitle2"
-            color="text.secondary"
-            sx={{ display: "flex", alignItems: "center", gap: 1 }}
-          >
-            <Tag size={16} />
-            Tipo de entidad
-          </Typography>
-          <Typography variant="body2" fontWeight="500">
-            {openEntity.entity_types?.name || "Sin tipo"}
-          </Typography>
-        </Box>
-
-        {/* Sección campos personalizados */}
-        {openFields.length > 0 && (
-          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-            <Typography
-              variant="subtitle2"
-              color="text.secondary"
-              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+      <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <User size={20} />
+            Ficha de entidad
+          </Box>
+          {openEntityId && (
+            <IconButton
+              href={`/entities/${openEntityId}/edit`}
+              component="a"
+              size="small"
+              title="Editar entidad"
             >
-              <Info size={16} />
-              Información personalizada
-            </Typography>
-            <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
-              {openFields.map((f) => (
-                <li key={f.id}>
-                  <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
-                    <Typography fontWeight={500}>{f.entity_fields.name}</Typography>
-                    <Typography>{f.value || "—"}</Typography>
+              <Pencil size={18} />
+            </IconButton>
+          )}
+        </DialogTitle>
+
+        <DialogContent dividers>
+          {openEntity && (
+            <Box display="flex" flexDirection="column" gap={3}>
+              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+                <Typography
+                  variant="subtitle2"
+                  color="text.secondary"
+                  sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                >
+                  <Tag size={16} />
+                  Tipo de entidad
+                </Typography>
+                <Typography variant="body2" fontWeight="500">
+                  {openEntity.entity_types?.name || "Sin tipo"}
+                </Typography>
+              </Box>
+
+              {openFields.length > 0 && (
+                <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                  >
+                    <Info size={16} />
+                    Información personalizada
+                  </Typography>
+                  <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
+                    {openFields.map((f) => (
+                      <li key={f.id}>
+                        <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
+                          <Typography fontWeight={500}>{f.entity_fields.name}</Typography>
+                          <Typography>{f.value || "—"}</Typography>
+                        </Box>
+                      </li>
+                    ))}
                   </Box>
-                </li>
-              ))}
+                </Box>
+              )}
+
+              {openDeadlines.length > 0 && (
+                <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
+                  <Typography
+                    variant="subtitle2"
+                    color="text.secondary"
+                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                  >
+                    <Calendar size={16} />
+                    Vencimientos
+                  </Typography>
+                  <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
+                    {openDeadlines.map((d) => {
+                      const status = getDeadlineStatus(d)
+                      return (
+                        <li key={d.id}>
+                          <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
+                            <Typography>{d.deadline_types.name}</Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <Clock size={12} />
+                              <Typography variant="caption">{status.text}</Typography>
+                            </Box>
+                          </Box>
+                        </li>
+                      )
+                    })}
+                  </Box>
+                </Box>
+              )}
             </Box>
-          </Box>
-        )}
-
-        {/* Sección vencimientos */}
-        {openDeadlines.length > 0 && (
-          <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-            <Typography
-              variant="subtitle2"
-              color="text.secondary"
-              sx={{ display: "flex", alignItems: "center", gap: 1 }}
-            >
-              <Calendar size={16} />
-              Vencimientos
-            </Typography>
-            <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
-              {openDeadlines.map((d) => {
-                const status = getDeadlineStatus(d)
-                return (
-                  <li key={d.id}>
-                    <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
-                      <Typography>{d.deadline_types.name}</Typography>
-                      <Box display="flex" alignItems="center" gap={0.5}>
-                        <Clock size={12} />
-                        <Typography variant="caption">{status.text}</Typography>
-                      </Box>
-                    </Box>
-                  </li>
-                )
-              })}
-            </Box>
-          </Box>
-        )}
-      </Box>
-    )}
-  </DialogContent>
-</Dialog>
-
-
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   )
 }
