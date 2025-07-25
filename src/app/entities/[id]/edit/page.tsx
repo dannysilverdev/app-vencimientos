@@ -3,25 +3,24 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  MenuItem,
-  Box,
-  FormControl,
-  InputLabel,
-  Select,
-  Switch,
-  FormControlLabel,
-  Card,
-  CardHeader,
-  CardContent
+  Container, Typography, TextField, Button, MenuItem, Box,
+  FormControl, InputLabel, Select, Switch, FormControlLabel,
+  Card, CardHeader, CardContent
 } from "@mui/material"
 import { Save as SaveIcon, FileCopy as FileIcon } from "@mui/icons-material"
 import UsageLogFormForEntity from '@/components/UsageLogFormForEntity'
 import EntityDeadlinesManager from '@/components/EntityDeadlinesManager'
 import CustomFieldsForm from '@/components/CustomFieldsForm'
+
+type FieldValue = {
+  field_id: string
+  value: string
+  entity_fields?: {
+    name: string
+    field_type: string
+    entity_type_id: string
+  } | null
+}
 
 export default function EditEntityPage() {
   const params = useParams()
@@ -35,7 +34,7 @@ export default function EditEntityPage() {
   const [entityTypes, setEntityTypes] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [fieldValues, setFieldValues] = useState<any[]>([])
+  const [fieldValues, setFieldValues] = useState<FieldValue[]>([])
 
   useEffect(() => {
     const loadData = async () => {
@@ -52,15 +51,16 @@ export default function EditEntityPage() {
           resTypes.json()
         ])
 
-        let fieldValuesData = []
+        let fieldValuesData: FieldValue[] = []
         if (resFieldValues.ok) {
           try {
-            fieldValuesData = await resFieldValues.json()
+            const allFields = await resFieldValues.json()
+            fieldValuesData = allFields.filter((f: FieldValue) =>
+              f.entity_fields?.entity_type_id === entityData.type_id
+            )
           } catch {
-            console.warn('⚠️ Respuesta vacía en entity-field-values/bulk')
+            console.warn('⚠️ Respuesta vacía en bulk')
           }
-        } else {
-          console.warn('⚠️ Error de red o backend en bulk GET:', resFieldValues.status)
         }
 
         setEntity(entityData)
@@ -82,9 +82,7 @@ export default function EditEntityPage() {
 
   const handleFieldValueChange = (fieldId: string, value: string) => {
     setFieldValues(prev =>
-      prev.map(f =>
-        f.field_id === fieldId ? { ...f, value } : f
-      )
+      prev.map(f => f.field_id === fieldId ? { ...f, value } : f)
     )
   }
 
@@ -164,12 +162,7 @@ export default function EditEntityPage() {
       </FormControl>
 
       <FormControlLabel
-        control={
-          <Switch
-            checked={tracksUsage}
-            onChange={(e) => setTracksUsage(e.target.checked)}
-          />
-        }
+        control={<Switch checked={tracksUsage} onChange={(e) => setTracksUsage(e.target.checked)} />}
         label="¿Registrar uso acumulado?"
         sx={{ mb: 2 }}
       />
@@ -180,11 +173,7 @@ export default function EditEntityPage() {
       />
 
       <Box mt={2} mb={3}>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          startIcon={<SaveIcon />}
-        >
+        <Button variant="contained" onClick={handleSubmit} startIcon={<SaveIcon />}>
           Guardar
         </Button>
       </Box>
