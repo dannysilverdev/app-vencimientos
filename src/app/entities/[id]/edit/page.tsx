@@ -21,6 +21,7 @@ import {
 import { Save as SaveIcon, FileCopy as FileIcon } from "@mui/icons-material"
 import UsageLogFormForEntity from '@/components/UsageLogFormForEntity'
 import EntityDeadlinesManager from '@/components/EntityDeadlinesManager'
+import CustomFieldsForm from '@/components/CustomFieldsForm'
 
 export default function EditEntityPage() {
   const params = useParams()
@@ -34,14 +35,16 @@ export default function EditEntityPage() {
   const [entityTypes, setEntityTypes] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fieldValues, setFieldValues] = useState<any[]>([])
 
   useEffect(() => {
     const loadData = async () => {
       if (!entityId) return
       try {
-        const [resEntity, resTypes] = await Promise.all([
+        const [resEntity, resTypes, resFieldValues] = await Promise.all([
           fetch(`/api/entities/${entityId}`),
-          fetch(`/api/entity-types`)
+          fetch(`/api/entity-types`),
+          fetch(`/api/entity-field-values/bulk?entity_id=${entityId}`)
         ])
 
         const [entityData, typeData] = await Promise.all([
@@ -49,11 +52,23 @@ export default function EditEntityPage() {
           resTypes.json()
         ])
 
+        let fieldValuesData = []
+        if (resFieldValues.ok) {
+          try {
+            fieldValuesData = await resFieldValues.json()
+          } catch {
+            console.warn('⚠️ Respuesta vacía en entity-field-values/bulk')
+          }
+        } else {
+          console.warn('⚠️ Error de red o backend en bulk GET:', resFieldValues.status)
+        }
+
         setEntity(entityData)
         setEditedName(entityData.name)
         setEditedTypeId(entityData.type_id)
         setTracksUsage(entityData.tracks_usage ?? false)
         setEntityTypes(typeData)
+        setFieldValues(fieldValuesData)
       } catch (err) {
         console.error(err)
         setError('Error al cargar los datos.')
@@ -65,9 +80,17 @@ export default function EditEntityPage() {
     loadData()
   }, [entityId])
 
+  const handleFieldValueChange = (fieldId: string, value: string) => {
+    setFieldValues(prev =>
+      prev.map(f =>
+        f.field_id === fieldId ? { ...f, value } : f
+      )
+    )
+  }
+
   const handleSubmit = async () => {
     try {
-      await fetch(`/api/entities/${entityId}`, {
+      const res = await fetch(`/api/entities/${entityId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -77,10 +100,29 @@ export default function EditEntityPage() {
         })
       })
 
+      if (!res.ok) throw new Error('Error al guardar entidad')
+
+      const resFields = await fetch(`/api/entity-field-values/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_id: entityId,
+          values: fieldValues.map(f => ({
+            field_id: f.field_id,
+            value: f.value
+          }))
+        })
+      })
+
+      if (!resFields.ok) {
+        const data = await resFields.json().catch(() => null)
+        throw new Error(data?.error || 'Error al guardar campos personalizados')
+      }
+
       router.push('/manage')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      setError('Error al guardar los cambios.')
+      setError(err.message || 'Error al guardar los cambios.')
     }
   }
 
@@ -130,6 +172,11 @@ export default function EditEntityPage() {
         }
         label="¿Registrar uso acumulado?"
         sx={{ mb: 2 }}
+      />
+
+      <CustomFieldsForm
+        fieldValues={fieldValues}
+        onChange={handleFieldValueChange}
       />
 
       <Box mt={2} mb={3}>
