@@ -31,14 +31,18 @@ type Deadline = {
   }
 }
 
+type EntityField = {
+  name: string
+  field_type: string
+  entity_type_id: string
+  show_in_card?: boolean
+}
+
 type FieldValue = {
+  id: string
+  value: string
   field_id: string
-  value: string | null
-  entity_fields: {
-    name: string
-    field_type: string
-    entity_type_id: string
-  }
+  entity_fields?: EntityField | null
 }
 
 type DeadlineStatus = {
@@ -111,7 +115,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       ? "#fff8e1"
       : "#e8f5e9"
 
-  const visibleFields = fieldValues.filter(fv => fv.value !== null && fv.value !== "")
+  const visibleFields = fieldValues.filter(f => f.entity_fields?.show_in_card && f.value?.trim())
 
   return (
     <Box
@@ -129,12 +133,13 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           transform: "scale(1.01)",
         },
         display: "flex",
+        gap: 2,
         flexDirection: "column",
-        gap: 1,
       }}
     >
       <Box display="flex" alignItems="center" gap={2}>
         <Box>{mainStatus?.icon || <Calendar size={28} />}</Box>
+
         <Box flexGrow={1} overflow="hidden">
           <Typography
             variant="subtitle1"
@@ -169,16 +174,22 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       </Box>
 
       {visibleFields.length > 0 && (
-        <Box mt={1}>
-          {visibleFields.map(fv => (
-            <Typography
-              key={fv.field_id}
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block", fontSize: "0.75rem" }}
+        <Box display="flex" flexWrap="wrap" gap={1}>
+          {visibleFields.map((f, index) => (
+            <Box
+              key={index}
+              sx={{
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                borderRadius: 20,
+                px: 1.5,
+                py: 0.5,
+                fontSize: "0.75rem",
+                fontWeight: 500,
+              }}
             >
-              {fv.entity_fields.name}: {fv.value}
-            </Typography>
+              {f.value}
+            </Box>
           ))}
         </Box>
       )}

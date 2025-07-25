@@ -5,14 +5,15 @@ export async function PUT(req, context) {
   const { id } = context.params
   const body = await req.json()
 
-  const { name, field_type, is_required } = body
+  const { name, field_type, is_required, show_in_card } = body
 
   const { error } = await supabaseAdmin
     .from('entity_fields')
     .update({
       name,
       field_type,
-      is_required
+      is_required,
+      show_in_card
     })
     .eq('id', id)
 

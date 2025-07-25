@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
       entity_fields (
         name,
         field_type,
-        is_required
+        is_required,
+        show_in_card
       )
     `)
 

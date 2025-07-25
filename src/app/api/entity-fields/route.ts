@@ -1,4 +1,3 @@
-// src/app/api/entity-fields/route.ts
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -8,7 +7,7 @@ export async function GET(req: NextRequest) {
 
   const query = supabaseAdmin
     .from('entity_fields')
-    .select('id, name, field_type, is_required, entity_type_id')
+    .select('id, name, field_type, is_required, show_in_card, entity_type_id')
 
   if (entity_type_id) {
     query.eq('entity_type_id', entity_type_id)
@@ -24,7 +23,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { entity_type_id, name, field_type, is_required = false } = await req.json()
+  const {
+    entity_type_id,
+    name,
+    field_type,
+    is_required = false,
+    show_in_card = false
+  } = await req.json()
 
   if (!entity_type_id || !name || !field_type) {
     return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
@@ -37,7 +42,9 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('entity_fields')
-    .insert([{ entity_type_id, name, field_type, is_required }])
+    .insert([
+      { entity_type_id, name, field_type, is_required, show_in_card }
+    ])
     .select()
 
   if (error) {

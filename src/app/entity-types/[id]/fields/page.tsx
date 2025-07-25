@@ -26,6 +26,7 @@ type EntityField = {
   name: string
   field_type: 'text' | 'number' | 'date'
   is_required: boolean
+  show_in_card: boolean
 }
 
 export default function EntityTypeFieldsPage() {
@@ -36,6 +37,7 @@ export default function EntityTypeFieldsPage() {
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<'text' | 'number' | 'date'>('text')
   const [isRequired, setIsRequired] = useState(false)
+  const [showInCard, setShowInCard] = useState(false)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingField, setEditingField] = useState<Partial<EntityField>>({})
@@ -59,12 +61,14 @@ export default function EntityTypeFieldsPage() {
         entity_type_id: entityTypeId,
         name: newName,
         field_type: newType,
-        is_required: isRequired
+        is_required: isRequired,
+        show_in_card: showInCard
       })
     })
     setNewName('')
     setNewType('text')
     setIsRequired(false)
+    setShowInCard(false)
     fetchFields()
   }
 
@@ -106,15 +110,26 @@ export default function EntityTypeFieldsPage() {
           <MenuItem value="number">Número</MenuItem>
           <MenuItem value="date">Fecha</MenuItem>
         </TextField>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={isRequired}
-              onChange={(e) => setIsRequired(e.target.checked)}
-            />
-          }
-          label="Requerido"
-        />
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isRequired}
+                onChange={(e) => setIsRequired(e.target.checked)}
+              />
+            }
+            label="Requerido"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showInCard}
+                onChange={(e) => setShowInCard(e.target.checked)}
+              />
+            }
+            label="Mostrar en tarjeta"
+          />
+        </Box>
         <Button variant="contained" onClick={addField}>
           Agregar campo
         </Button>
@@ -155,20 +170,36 @@ export default function EntityTypeFieldsPage() {
                     <MenuItem value="number">Número</MenuItem>
                     <MenuItem value="date">Fecha</MenuItem>
                   </TextField>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={editingField.is_required || false}
-                        onChange={(e) =>
-                          setEditingField(prev => ({
-                            ...prev,
-                            is_required: e.target.checked
-                          }))
-                        }
-                      />
-                    }
-                    label="Requerido"
-                  />
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={editingField.is_required || false}
+                          onChange={(e) =>
+                            setEditingField(prev => ({
+                              ...prev,
+                              is_required: e.target.checked
+                            }))
+                          }
+                        />
+                      }
+                      label="Requerido"
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={editingField.show_in_card || false}
+                          onChange={(e) =>
+                            setEditingField(prev => ({
+                              ...prev,
+                              show_in_card: e.target.checked
+                            }))
+                          }
+                        />
+                      }
+                      label="Mostrar en tarjeta"
+                    />
+                  </Box>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
                   <IconButton onClick={() => updateField(field.id)}>
@@ -186,7 +217,10 @@ export default function EntityTypeFieldsPage() {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                 <ListItemText
                   primary={`${field.name} (${field.field_type})`}
-                  secondary={field.is_required ? 'Requerido' : 'Opcional'}
+                  secondary={[
+                    field.is_required ? 'Requerido' : 'Opcional',
+                    field.show_in_card ? 'Se muestra en tarjeta' : null
+                  ].filter(Boolean).join(' • ')}
                 />
                 <Box>
                   <IconButton onClick={() => {
