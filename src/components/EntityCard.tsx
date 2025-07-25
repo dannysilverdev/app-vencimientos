@@ -31,6 +31,16 @@ type Deadline = {
   }
 }
 
+type FieldValue = {
+  field_id: string
+  value: string | null
+  entity_fields: {
+    name: string
+    field_type: string
+    entity_type_id: string
+  }
+}
+
 type DeadlineStatus = {
   text: string
   variant: "default" | "secondary" | "destructive"
@@ -76,10 +86,11 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
 type Props = {
   entity: Entity
   deadlines: Deadline[]
+  fieldValues?: FieldValue[]
   onClick: () => void
 }
 
-export default function EntityCard({ entity, deadlines, onClick }: Props) {
+export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
 
@@ -100,6 +111,8 @@ export default function EntityCard({ entity, deadlines, onClick }: Props) {
       ? "#fff8e1"
       : "#e8f5e9"
 
+  const visibleFields = fieldValues.filter(fv => fv.value !== null && fv.value !== "")
+
   return (
     <Box
       onClick={onClick}
@@ -116,43 +129,59 @@ export default function EntityCard({ entity, deadlines, onClick }: Props) {
           transform: "scale(1.01)",
         },
         display: "flex",
-        gap: 2,
-        alignItems: "center",
+        flexDirection: "column",
+        gap: 1,
       }}
     >
-      <Box>{mainStatus?.icon || <Calendar size={28} />}</Box>
-
-      <Box flexGrow={1} overflow="hidden">
-        <Typography
-          variant="subtitle1"
-          fontWeight={600}
-          noWrap
-          sx={{ fontSize: isMobile ? "1rem" : "1.1rem" }}
-        >
-          {entity.name}
-        </Typography>
-
-        {mainStatus && (
+      <Box display="flex" alignItems="center" gap={2}>
+        <Box>{mainStatus?.icon || <Calendar size={28} />}</Box>
+        <Box flexGrow={1} overflow="hidden">
           <Typography
-            variant="body2"
-            color="text.secondary"
+            variant="subtitle1"
+            fontWeight={600}
             noWrap
-            sx={{ fontSize: isMobile ? "0.8rem" : "0.9rem" }}
+            sx={{ fontSize: isMobile ? "1rem" : "1.1rem" }}
           >
-            {mainStatus.label} — {mainStatus.text}
+            {entity.name}
           </Typography>
-        )}
 
-        {deadlines.length > 1 && (
-          <Typography
-            variant="caption"
-            color="text.disabled"
-            sx={{ fontSize: isMobile ? "0.7rem" : "0.8rem" }}
-          >
-            {deadlines.length - 1} venc. adicionales
-          </Typography>
-        )}
+          {mainStatus && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              noWrap
+              sx={{ fontSize: isMobile ? "0.8rem" : "0.9rem" }}
+            >
+              {mainStatus.label} — {mainStatus.text}
+            </Typography>
+          )}
+
+          {deadlines.length > 1 && (
+            <Typography
+              variant="caption"
+              color="text.disabled"
+              sx={{ fontSize: isMobile ? "0.7rem" : "0.8rem" }}
+            >
+              {deadlines.length - 1} venc. adicionales
+            </Typography>
+          )}
+        </Box>
       </Box>
+
+      {visibleFields.length > 0 && (
+        <Box mt={1}>
+          {visibleFields.map(fv => (
+            <Typography
+              key={fv.field_id}
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", fontSize: "0.75rem" }}
+            >
+              {fv.entity_fields.name}: {fv.value}
+            </Typography>
+          ))}
+        </Box>
+      )}
     </Box>
   )
 }

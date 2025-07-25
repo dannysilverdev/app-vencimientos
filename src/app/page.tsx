@@ -40,6 +40,7 @@ type FieldValue = {
   entity_fields: {
     name: string
     field_type: string
+    entity_type_id: string
   }
 }
 
@@ -191,11 +192,13 @@ export default function HomePage() {
 
                 return (
                   <EntityCard
-                    key={entity.id}
-                    entity={entity}
-                    deadlines={deadlineWithStatus}
-                    onClick={() => setOpenEntityId(entity.id)}
-                  />
+                  key={entity.id}
+                  entity={entity}
+                  deadlines={deadlineWithStatus}
+                  fieldValues={fieldValuesByEntity[entity.id] || []}
+                  onClick={() => setOpenEntityId(entity.id)}
+                />
+
                 )
               })}
             </Box>
