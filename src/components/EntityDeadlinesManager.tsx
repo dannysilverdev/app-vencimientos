@@ -48,7 +48,40 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
           resDeadlines.json(),
           resDeadlineTypes.json()
         ])
-        setDeadlines(deadlineData)
+
+        const now = new Date()
+        const enhancedDeadlines = deadlineData.map((d: any) => {
+          let estimatedDueDate: Date | null = null
+          let status = 'good'
+
+          if (d.deadline_types.measure_by === 'date') {
+            const last = new Date(d.last_done)
+            estimatedDueDate = new Date(last)
+            if (d.frequency && d.frequency_unit) {
+              if (d.frequency_unit === 'days') estimatedDueDate.setDate(last.getDate() + d.frequency)
+              else if (d.frequency_unit === 'months') estimatedDueDate.setMonth(last.getMonth() + d.frequency)
+              else if (d.frequency_unit === 'years') estimatedDueDate.setFullYear(last.getFullYear() + d.frequency)
+            }
+
+            const diffDays = estimatedDueDate ? Math.ceil((estimatedDueDate.getTime() - now.getTime()) / (1000 * 3600 * 24)) : 0
+            if (diffDays <= 0) status = 'expired'
+            else if (diffDays <= 10) status = 'warning'
+          } else if (d.deadline_types.measure_by === 'usage') {
+            const usageSince = d.current_usage - d.last_done
+            const remaining = d.frequency - usageSince
+            const daysLeft = d.usage_daily_average ? remaining / d.usage_daily_average : null
+            if (daysLeft != null) {
+              estimatedDueDate = new Date(now)
+              estimatedDueDate.setDate(now.getDate() + Math.ceil(daysLeft))
+              if (remaining <= 0) status = 'expired'
+              else if (remaining <= d.usage_daily_average * 5) status = 'warning'
+            }
+          }
+
+          return { ...d, estimatedDueDate, status }
+        })
+
+        setDeadlines(enhancedDeadlines)
         setDeadlineTypes(deadlineTypesData)
       } catch (err) {
         console.error(err)
@@ -59,168 +92,45 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     loadData()
   }, [entityId])
 
-  const handleAddDeadline = async () => {
-    try {
-      if (!newDeadlineTypeId || !newFrequency || !newLastDone) {
-        setError("Completa todos los campos requeridos.")
-        return
-      }
-
-      const selectedType = deadlineTypes.find((t) => t.id === newDeadlineTypeId)
-      const measureByUsage = selectedType?.measure_by === 'usage'
-
-      if (measureByUsage && (!newFrequencyUnit || !newDailyAverage)) {
-        setError("Debes ingresar unidad y promedio diario para vencimientos por uso.")
-        return
-      }
-
-      const payload: any = {
-        entity_id: entityId,
-        type_id: newDeadlineTypeId,
-        frequency: parseInt(newFrequency),
-        last_done: newLastDone,
-        frequency_unit: measureByUsage ? newFrequencyUnit : null,
-        usage_daily_average: measureByUsage ? parseFloat(newDailyAverage) : null
-      }
-
-      const res = await fetch(`/api/deadlines`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!res.ok) {
-        const errorData = await res.clone().json().catch(() => null)
-        const msg = errorData?.error || errorData?.message || await res.text() || 'Error al guardar vencimiento'
-        throw new Error(msg)
-      }
-
-      const refreshed = await fetch(`/api/deadlines?entity_id=${entityId}`)
-      const newData = await refreshed.json()
-      setDeadlines(newData)
-
-      setOpenAddDeadline(false)
-      setNewDeadlineTypeId('')
-      setNewFrequency('')
-      setNewLastDone('')
-      setNewFrequencyUnit('')
-      setNewDailyAverage('')
-      setError(null)
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || 'No se pudo guardar el nuevo vencimiento.')
-    }
-  }
-
-  const handleDeleteDeadline = async (deadlineId: string) => {
-    const confirmed = window.confirm("¿Seguro que deseas eliminar este vencimiento?")
-    if (!confirmed) return
-
-    try {
-      const res = await fetch(`/api/deadlines/${deadlineId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error("Error al eliminar el vencimiento.")
-      setDeadlines(prev => prev.filter(d => d.id !== deadlineId))
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || "No se pudo eliminar el vencimiento.")
-    }
-  }
-
   return (
-    <>
-      <Card>
-        <CardHeader
-          title="Vencimientos"
-          avatar={<CalendarIcon />}
-          action={<Button onClick={() => setOpenAddDeadline(true)} startIcon={<PlusIcon />} size="small">Agregar</Button>}
-        />
-        <CardContent>
-          {deadlines.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">Sin vencimientos asignados aún.</Typography>
-          ) : (
-            <Stack spacing={2}>
-              {deadlines.map((d) => (
-                <Box key={d.id} display="flex" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography>{d.deadline_types.name}</Typography>
-                    {d.frequency && <Typography variant="body2" color="text.secondary">Cada {d.frequency} {d.frequency_unit || 'días'}</Typography>}
-                    {d.usage_daily_average && <Typography variant="body2" color="text.secondary">Promedio diario: {d.usage_daily_average}</Typography>}
-                  </Box>
-                  <IconButton onClick={() => handleDeleteDeadline(d.id)}>
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </CardContent>
-      </Card>
+    <Box sx={{ mt: 4 }}>
+      <Typography variant="h6" gutterBottom>Vencimientos</Typography>
 
-      <Dialog open={openAddDeadline} onClose={() => setOpenAddDeadline(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Agregar nuevo vencimiento</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <FormControl fullWidth>
-              <InputLabel>Tipo de vencimiento</InputLabel>
-              <Select
-                value={newDeadlineTypeId}
-                label="Tipo de vencimiento"
-                onChange={(e) => setNewDeadlineTypeId(e.target.value)}
-              >
-                {deadlineTypes.map((d) => (
-                  <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+      <Button
+        variant="outlined"
+        startIcon={<PlusIcon />}
+        onClick={() => setOpenAddDeadline(true)}
+        sx={{ mb: 2 }}
+      >
+        Agregar vencimiento
+      </Button>
 
-            <TextField
-              label="Frecuencia"
-              type="number"
-              value={newFrequency}
-              onChange={(e) => setNewFrequency(e.target.value)}
-              fullWidth
+      {deadlines.map((d) => (
+        <Box key={d.id} sx={{ border: '1px solid #ccc', borderRadius: 2, p: 2, mb: 2 }}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                bgcolor:
+                  d.status === 'expired' ? 'error.main' :
+                  d.status === 'warning' ? 'warning.main' :
+                  'success.main'
+              }}
             />
-
-            <TextField
-              label="Último realizado"
-              type="date"
-              value={newLastDone}
-              onChange={(e) => setNewLastDone(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
-
-            {deadlineTypes.find(t => t.id === newDeadlineTypeId)?.measure_by === 'usage' && (
-              <>
-                <FormControl fullWidth>
-                  <InputLabel>Unidad</InputLabel>
-                  <Select
-                    value={newFrequencyUnit}
-                    label="Unidad"
-                    onChange={(e) => setNewFrequencyUnit(e.target.value)}
-                  >
-                    <MenuItem value="hours">Horas</MenuItem>
-                    <MenuItem value="kilometers">Kilómetros</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <TextField
-                  label="Promedio diario"
-                  type="number"
-                  value={newDailyAverage}
-                  onChange={(e) => setNewDailyAverage(e.target.value)}
-                  fullWidth
-                />
-              </>
-            )}
-
-            <Box display="flex" justifyContent="flex-end" gap={1}>
-              <Button onClick={() => setOpenAddDeadline(false)}>Cancelar</Button>
-              <Button onClick={handleAddDeadline} variant="contained">Guardar</Button>
-            </Box>
+            <Typography variant="subtitle1">{d.deadline_types.name}</Typography>
           </Stack>
-        </DialogContent>
-      </Dialog>
-    </>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Última realización: {new Date(d.last_done).toLocaleDateString()}
+          </Typography>
+          {d.estimatedDueDate && (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              Estimado vencimiento: {new Date(d.estimatedDueDate).toLocaleDateString()}
+            </Typography>
+          )}
+        </Box>
+      ))}
+    </Box>
   )
 }

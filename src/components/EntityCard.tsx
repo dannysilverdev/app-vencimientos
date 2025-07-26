@@ -2,14 +2,12 @@
 import {
   Box,
   Typography,
-  useTheme,
-  useMediaQuery,
+  Stack,
 } from "@mui/material"
 import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Calendar,
 } from "lucide-react"
 
 type Entity = {
@@ -94,98 +92,74 @@ type Props = {
   onClick: () => void
 }
 
-export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+export default function EntityCard({ entity, deadlines, fieldValues, onClick }: Props) {
+  const nearestDeadlines = deadlines
+    .map(getDeadlineStatus)
+    .sort((a, b) => a.daysRemaining - b.daysRemaining)
+    .slice(0, 2)
 
-  let mainDeadline: Deadline | null = null
-  let mainStatus: DeadlineStatus | null = null
-
-  if (deadlines.length > 0) {
-    mainDeadline = deadlines
-      .map(d => ({ deadline: d, status: getDeadlineStatus(d) }))
-      .sort((a, b) => a.status.daysRemaining - b.status.daysRemaining)[0].deadline
-    mainStatus = getDeadlineStatus(mainDeadline)
-  }
-
-  const bgColor =
-    mainStatus?.variant === "destructive"
-      ? "#ffebee"
-      : mainStatus?.variant === "secondary"
-      ? "#fff8e1"
-      : "#e8f5e9"
-
-  const visibleFields = fieldValues.filter(f => f.entity_fields?.show_in_card && f.value?.trim())
+  const visibleFields = fieldValues?.filter(f =>
+    f.entity_fields?.show_in_card &&
+    f.value != null &&
+    String(f.value).trim() !== ''
+  ) || []
 
   return (
-    <Box
-      onClick={onClick}
-      sx={{
-        flex: { xs: "1 1 100%", sm: "1 1 300px" },
-        maxWidth: { xs: "100%", sm: 360 },
-        borderRadius: 3,
-        cursor: "pointer",
-        transition: "all 0.2s",
-        bgcolor: bgColor,
-        p: 2,
-        ":hover": {
-          boxShadow: 6,
-          transform: "scale(1.01)",
-        },
-        display: "flex",
-        gap: 2,
-        flexDirection: "column",
-      }}
-    >
-      <Box display="flex" alignItems="center" gap={2}>
-        <Box>{mainStatus?.icon || <Calendar size={28} />}</Box>
+    <Box onClick={onClick} sx={{ border: '1px solid #ddd', borderRadius: 2, p: 2, cursor: 'pointer', mb: 2 }}>
+      <Typography variant="h6" fontWeight="bold">{entity.name}</Typography>
 
-        <Box flexGrow={1} overflow="hidden">
-          <Typography
-            variant="subtitle1"
-            fontWeight={600}
-            noWrap
-            sx={{ fontSize: isMobile ? "1rem" : "1.1rem" }}
-          >
-            {entity.name}
-          </Typography>
-
-          {mainStatus && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              noWrap
-              sx={{ fontSize: isMobile ? "0.8rem" : "0.9rem" }}
-            >
-              {mainStatus.label} — {mainStatus.text}
-            </Typography>
-          )}
-
-          {deadlines.length > 1 && (
-            <Typography
-              variant="caption"
-              color="text.disabled"
-              sx={{ fontSize: isMobile ? "0.7rem" : "0.8rem" }}
-            >
-              {deadlines.length - 1} venc. adicionales
-            </Typography>
-          )}
+      {nearestDeadlines.map((deadline, i) => (
+        <Box
+          key={i}
+          sx={{
+            mt: 2,
+            p: 1.5,
+            borderRadius: 1,
+            bgcolor:
+              deadline.variant === 'destructive' ? '#fdecea'
+              : deadline.variant === 'secondary' ? '#fff4e5'
+              : '#edf7ed'
+          }}
+        >
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {deadline.icon}
+              <Typography variant="subtitle2" fontWeight="bold" sx={{ ml: 1 }}>
+                {deadline.label}
+              </Typography>
+            </Box>
+            <Box sx={{ ml: { sm: 3 } }}>
+              {deadline.daysRemaining < 0 ? (
+                <Typography variant="body2" color="error">
+                  VENCIÓ el {new Date(deadline.text).toLocaleDateString()}
+                </Typography>
+              ) : (
+                <>
+                  <Typography variant="body2">
+                    {deadline.daysRemaining} días restantes
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    (vence el {new Date(deadline.text).toLocaleDateString()})
+                  </Typography>
+                </>
+              )}
+            </Box>
+          </Stack>
         </Box>
-      </Box>
+      ))}
 
       {visibleFields.length > 0 && (
-        <Box display="flex" flexWrap="wrap" gap={1}>
-          {visibleFields.map((f, index) => (
+        <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {visibleFields.map((f, i) => (
             <Box
-              key={index}
+              key={i}
               sx={{
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                borderRadius: 20,
                 px: 1.5,
                 py: 0.5,
-                fontSize: "0.75rem",
-                fontWeight: 500,
+                bgcolor: 'grey.200',
+                borderRadius: 999,
+                fontSize: '0.75rem',
+                fontWeight: 500
               }}
             >
               {f.value}
