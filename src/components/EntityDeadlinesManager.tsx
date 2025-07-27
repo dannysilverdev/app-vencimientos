@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   IconButton,
   Select,
   MenuItem,
@@ -36,6 +37,8 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
   const [newLastDone, setNewLastDone] = useState('')
   const [newFrequencyUnit, setNewFrequencyUnit] = useState('')
   const [newDailyAverage, setNewDailyAverage] = useState('')
+
+  const selectedType = deadlineTypes.find(t => t.id === newDeadlineTypeId)
 
   useEffect(() => {
     const loadData = async () => {
@@ -92,6 +95,42 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     loadData()
   }, [entityId])
 
+  const handleAddDeadline = async () => {
+    try {
+      const res = await fetch('/api/deadlines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_id: entityId,
+          deadline_type_id: newDeadlineTypeId,
+          frequency: Number(newFrequency),
+          last_done: newLastDone,
+          frequency_unit: newFrequencyUnit || null,
+          usage_daily_average: newDailyAverage ? Number(newDailyAverage) : null
+        })
+      })
+
+      if (!res.ok) {
+        const errorData = await res.clone().json().catch(() => null)
+        const msg = errorData?.error || errorData?.message || await res.text() || 'Error al guardar vencimiento'
+        throw new Error(msg)
+      }
+
+      const refreshed = await fetch(`/api/deadlines?entity_id=${entityId}`)
+      const updated = await refreshed.json()
+      setDeadlines(updated)
+      setOpenAddDeadline(false)
+      setNewDeadlineTypeId('')
+      setNewFrequency('')
+      setNewLastDone('')
+      setNewFrequencyUnit('')
+      setNewDailyAverage('')
+    } catch (err) {
+      console.error(err)
+      alert('Error al guardar vencimiento.')
+    }
+  }
+
   return (
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" gutterBottom>Vencimientos</Typography>
@@ -115,8 +154,8 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
                 borderRadius: '50%',
                 bgcolor:
                   d.status === 'expired' ? 'error.main' :
-                  d.status === 'warning' ? 'warning.main' :
-                  'success.main'
+                    d.status === 'warning' ? 'warning.main' :
+                      'success.main'
               }}
             />
             <Typography variant="subtitle1">{d.deadline_types.name}</Typography>
@@ -131,6 +170,74 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
           )}
         </Box>
       ))}
+
+      <Dialog open={openAddDeadline} onClose={() => setOpenAddDeadline(false)}>
+        <DialogTitle>Nuevo vencimiento</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Tipo</InputLabel>
+            <Select
+              value={newDeadlineTypeId}
+              onChange={(e) => setNewDeadlineTypeId(e.target.value)}
+              label="Tipo"
+            >
+              {deadlineTypes.map((type) => (
+                <MenuItem key={type.id} value={type.id}>
+                  {type.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            label="Frecuencia"
+            value={newFrequency}
+            onChange={(e) => setNewFrequency(e.target.value)}
+            fullWidth
+            type="number"
+            sx={{ mt: 2 }}
+          />
+
+          <TextField
+            label="Última realización"
+            type="date"
+            value={newLastDone}
+            onChange={(e) => setNewLastDone(e.target.value)}
+            fullWidth
+            sx={{ mt: 2 }}
+            InputLabelProps={{ shrink: true }}
+          />
+
+          {selectedType?.measure_by === 'usage' && (
+            <>
+              <FormControl fullWidth sx={{ mt: 2 }}>
+                <InputLabel>Unidad</InputLabel>
+                <Select
+                  value={newFrequencyUnit}
+                  onChange={(e) => setNewFrequencyUnit(e.target.value)}
+                  label="Unidad"
+                >
+                  <MenuItem value="hours">Horas</MenuItem>
+                  <MenuItem value="kilometers">Kilómetros</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                label="Promedio de uso diario"
+                value={newDailyAverage}
+                onChange={(e) => setNewDailyAverage(e.target.value)}
+                fullWidth
+                type="number"
+                sx={{ mt: 2 }}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpenAddDeadline(false)}>Cancelar</Button>
+          <Button onClick={handleAddDeadline} variant="contained">Guardar</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
