@@ -17,7 +17,9 @@ import {
   MenuItem,
   InputLabel,
   FormControl,
-  TextField
+  TextField,
+  Snackbar,
+  Alert
 } from '@mui/material'
 import {
   CalendarToday as CalendarIcon,
@@ -37,6 +39,8 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
   const [newLastDone, setNewLastDone] = useState('')
   const [newFrequencyUnit, setNewFrequencyUnit] = useState('')
   const [newDailyAverage, setNewDailyAverage] = useState('')
+
+  const [snackbar, setSnackbar] = useState<{ message: string, severity: 'error' | 'success' } | null>(null)
 
   const selectedType = deadlineTypes.find(t => t.id === newDeadlineTypeId)
 
@@ -102,7 +106,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entity_id: entityId,
-          deadline_type_id: newDeadlineTypeId,
+          type_id: newDeadlineTypeId,
           frequency: Number(newFrequency),
           last_done: newLastDone,
           frequency_unit: newFrequencyUnit || null,
@@ -125,9 +129,10 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
       setNewLastDone('')
       setNewFrequencyUnit('')
       setNewDailyAverage('')
-    } catch (err) {
+      setSnackbar({ message: 'Vencimiento agregado con éxito.', severity: 'success' })
+    } catch (err: any) {
       console.error(err)
-      alert('Error al guardar vencimiento.')
+      setSnackbar({ message: err.message || 'Error al guardar vencimiento.', severity: 'error' })
     }
   }
 
@@ -238,6 +243,23 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
           <Button onClick={handleAddDeadline} variant="contained">Guardar</Button>
         </DialogActions>
       </Dialog>
+
+      {snackbar ? (
+        <Snackbar
+          open
+          autoHideDuration={5000}
+          onClose={() => setSnackbar(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setSnackbar(null)}
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      ) : null}
     </Box>
   )
 }
