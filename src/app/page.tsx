@@ -50,12 +50,14 @@ type Deadline = {
   frequency: number
   frequency_unit: string
   usage_daily_average: number | null
+  next_due_date: string | null // ✅ Asegúrate de incluir esto
   deadline_types: {
     name: string
     measure_by: string
     unit: string | null
   }
 }
+
 
 type DeadlineStatus = {
   text: string
@@ -186,7 +188,11 @@ export default function HomePage() {
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "center" }}>
               {group.map(entity => {
                 const deadlines = deadlinesByEntity[entity.id] || []
-                const deadlineWithStatus = deadlines.map(d => ({ ...d, status: getDeadlineStatus(d) }))
+                const deadlineWithStatus = deadlines.map(d => ({
+                  ...d,
+                  next_due_date: d.next_due_date, // ✅ Clave para mantener el valor
+                  status: getDeadlineStatus(d)
+                }))
                 const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status))
                 if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
