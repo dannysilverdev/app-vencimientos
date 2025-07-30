@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
       frequency,
       frequency_unit,
       usage_daily_average,
+      next_due_date,
       deadline_types (
         name,
         measure_by,
@@ -43,10 +44,11 @@ export async function POST(req: NextRequest) {
     last_done,
     frequency,
     frequency_unit,
-    usage_daily_average
+    usage_daily_average,
+    next_due_date
   } = await req.json()
 
-  if (!entity_id || !type_id || !last_done || !frequency) {
+  if (!entity_id || !type_id || !last_done) {
     return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
   }
 
@@ -62,22 +64,19 @@ export async function POST(req: NextRequest) {
 
   const measureBy = deadlineType?.measure_by
 
-  if (measureBy === 'usage') {
-    if (!frequency_unit || usage_daily_average == null) {
-      return NextResponse.json({ error: 'Faltan campos de uso para vencimientos por uso.' }, { status: 400 })
-    }
+  const insertPayload = {
+    entity_id,
+    type_id,
+    last_done,
+    frequency: measureBy === 'usage' ? frequency : null,
+    frequency_unit: measureBy === 'usage' ? frequency_unit : null,
+    usage_daily_average: measureBy === 'usage' ? usage_daily_average : null,
+    next_due_date: measureBy === 'date' ? next_due_date : null
   }
 
   const { data, error } = await supabaseAdmin
     .from('deadlines')
-    .insert([{
-      entity_id,
-      type_id,
-      last_done,
-      frequency,
-      frequency_unit: measureBy === 'usage' ? frequency_unit : null,
-      usage_daily_average: measureBy === 'usage' ? usage_daily_average : null
-    }])
+    .insert([insertPayload])
     .select()
 
   if (error) {
@@ -85,4 +84,81 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json(data[0])
+}
+
+export async function PUT(req: NextRequest) {
+  const {
+    id,
+    last_done,
+    frequency,
+    frequency_unit,
+    usage_daily_average,
+    next_due_date
+  } = await req.json()
+
+  if (!id || !last_done) {
+    return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
+  }
+
+  const { data: current, error: loadError } = await supabaseAdmin
+    .from('deadlines')
+    .select('type_id')
+    .eq('id', id)
+    .single()
+
+  if (loadError) {
+    return NextResponse.json({ error: loadError.message }, { status: 500 })
+  }
+
+  const { data: typeData, error: typeError } = await supabaseAdmin
+    .from('deadline_types')
+    .select('measure_by')
+    .eq('id', current.type_id)
+    .single()
+
+  if (typeError) {
+    return NextResponse.json({ error: typeError.message }, { status: 500 })
+  }
+
+  const measureBy = typeData?.measure_by
+
+  const updatePayload = {
+    last_done,
+    frequency: measureBy === 'usage' ? frequency : null,
+    frequency_unit: measureBy === 'usage' ? frequency_unit : null,
+    usage_daily_average: measureBy === 'usage' ? usage_daily_average : null,
+    next_due_date: measureBy === 'date' ? next_due_date : null
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('deadlines')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json(data[0])
+}
+
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+
+  if (!id) {
+    return NextResponse.json({ error: 'ID no proporcionado.' }, { status: 400 })
+  }
+
+  const { error } = await supabaseAdmin
+    .from('deadlines')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
 }

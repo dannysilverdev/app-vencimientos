@@ -23,6 +23,7 @@ type Deadline = {
   frequency: number
   frequency_unit: string
   usage_daily_average: number | null
+  next_due_date: string | null
   deadline_types: {
     name: string
     measure_by: string
@@ -55,18 +56,19 @@ type DeadlineStatus = {
 
 function getDeadlineStatus(d: Deadline): DeadlineStatus {
   const today = new Date()
-  const last = new Date(d.last_done)
-  const estimated = new Date(last)
+  let dueDate: Date
 
-  if (d.deadline_types.measure_by === "date") {
-    estimated.setDate(estimated.getDate() + d.frequency)
+  if (d.deadline_types.measure_by === "date" && d.next_due_date) {
+    dueDate = new Date(d.next_due_date)
   } else {
+    const last = new Date(d.last_done)
+    dueDate = new Date(last)
     const daily = d.usage_daily_average || 0
     const daysUntilDue = daily > 0 ? d.frequency / daily : 0
-    estimated.setDate(estimated.getDate() + Math.round(daysUntilDue))
+    dueDate.setDate(dueDate.getDate() + Math.round(daysUntilDue))
   }
 
-  const diffDays = Math.ceil((estimated.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
   let variant: DeadlineStatus["variant"] = "default"
   let color = "#4caf50" // verde
@@ -75,14 +77,14 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     variant = "destructive"
     color = "#f44336" // rojo
     icon = <XCircle size={16} />
-  } else if (diffDays <= d.frequency * 0.3) {
+  } else if (diffDays <= 3) {
     variant = "secondary"
     color = "#ff9800" // naranjo
     icon = <AlertTriangle size={16} />
   }
 
   return {
-    text: estimated.toISOString().split("T")[0],
+    text: dueDate.toISOString().split("T")[0],
     variant,
     icon,
     daysRemaining: diffDays,
