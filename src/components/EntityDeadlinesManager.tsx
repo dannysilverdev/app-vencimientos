@@ -35,6 +35,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     type_id: '',
     frequency: '',
     last_done: '',
+    next_due_date: '',
     frequency_unit: '',
     usage_daily_average: ''
   })
@@ -46,6 +47,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
       type_id: '',
       frequency: '',
       last_done: '',
+      next_due_date: '',
       frequency_unit: '',
       usage_daily_average: ''
     })
@@ -70,7 +72,8 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
       entity_id: entityId,
       type_id: form.type_id,
       last_done: form.last_done,
-      frequency: Number(form.frequency),
+      next_due_date: selectedType?.measure_by === 'date' ? form.next_due_date : null,
+      frequency: selectedType?.measure_by === 'usage' ? Number(form.frequency) : null,
       frequency_unit: selectedType?.measure_by === 'usage' ? form.frequency_unit : null,
       usage_daily_average: selectedType?.measure_by === 'usage' ? Number(form.usage_daily_average) : null
     }
@@ -102,8 +105,9 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     setEditingDeadline(deadline)
     setForm({
       type_id: deadline.type_id,
-      frequency: deadline.frequency.toString(),
-      last_done: deadline.last_done.slice(0, 10),
+      frequency: deadline.frequency?.toString() || '',
+      last_done: deadline.last_done?.slice(0, 10) || '',
+      next_due_date: deadline.next_due_date?.slice(0, 10) || '',
       frequency_unit: deadline.frequency_unit || '',
       usage_daily_average: deadline.usage_daily_average?.toString() || ''
     })
@@ -138,27 +142,17 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
         </Select>
       </FormControl>
 
-      <TextField
-        label="Frecuencia"
-        fullWidth
-        sx={{ mt: 2 }}
-        type="number"
-        value={form.frequency}
-        onChange={(e) => setForm(f => ({ ...f, frequency: e.target.value }))}
-      />
-
-      <TextField
-        label="Última realización"
-        type="date"
-        value={form.last_done}
-        onChange={(e) => setForm(f => ({ ...f, last_done: e.target.value }))}
-        fullWidth
-        sx={{ mt: 2 }}
-        InputLabelProps={{ shrink: true }}
-      />
-
       {selectedType?.measure_by === 'usage' && (
         <>
+          <TextField
+            label="Frecuencia"
+            fullWidth
+            sx={{ mt: 2 }}
+            type="number"
+            value={form.frequency}
+            onChange={(e) => setForm(f => ({ ...f, frequency: e.target.value }))}
+          />
+
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Unidad</InputLabel>
             <Select
@@ -178,6 +172,39 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
             type="number"
             value={form.usage_daily_average}
             onChange={(e) => setForm(f => ({ ...f, usage_daily_average: e.target.value }))}
+          />
+
+          <TextField
+            label="Última realización"
+            type="date"
+            value={form.last_done}
+            onChange={(e) => setForm(f => ({ ...f, last_done: e.target.value }))}
+            fullWidth
+            sx={{ mt: 2 }}
+            InputLabelProps={{ shrink: true }}
+          />
+        </>
+      )}
+
+      {selectedType?.measure_by === 'date' && (
+        <>
+          <TextField
+            label="Última realización"
+            type="date"
+            value={form.last_done}
+            onChange={(e) => setForm(f => ({ ...f, last_done: e.target.value }))}
+            fullWidth
+            sx={{ mt: 2 }}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="Fecha de vencimiento"
+            type="date"
+            value={form.next_due_date}
+            onChange={(e) => setForm(f => ({ ...f, next_due_date: e.target.value }))}
+            fullWidth
+            sx={{ mt: 2 }}
+            InputLabelProps={{ shrink: true }}
           />
         </>
       )}
