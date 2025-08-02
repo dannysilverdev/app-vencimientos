@@ -32,6 +32,9 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
   const [openEdit, setOpenEdit] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState<any>(null)
 
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [deadlineToDelete, setDeadlineToDelete] = useState<any>(null)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -97,7 +100,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
 
     if (!res.ok) {
       const msg = (await res.json()).error || 'Error al guardar'
-      alert(msg)
+      setSnackbar({ open: true, message: msg, severity: 'error' })
       return
     }
 
@@ -127,14 +130,24 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     setOpenEdit(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar vencimiento?')) return
+  const confirmDelete = (deadline: any) => {
+    setDeadlineToDelete(deadline)
+    setOpenDeleteDialog(true)
+  }
+
+  const handleDelete = async () => {
+    if (!deadlineToDelete) return
     const res = await fetch('/api/deadlines', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      body: JSON.stringify({ id: deadlineToDelete.id })
     })
-    if (!res.ok) return alert('Error al eliminar')
+    setOpenDeleteDialog(false)
+    if (!res.ok) {
+      const msg = (await res.json().catch(() => null))?.error || 'Error al eliminar'
+      setSnackbar({ open: true, message: msg, severity: 'error' })
+      return
+    }
     await loadData()
     setSnackbar({
       open: true,
@@ -243,7 +256,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
             <Typography variant="subtitle1">{d.deadline_types.name}</Typography>
             <Box>
               <IconButton onClick={() => handleEdit(d)}><EditIcon /></IconButton>
-              <IconButton onClick={() => handleDelete(d.id)}><DeleteIcon /></IconButton>
+              <IconButton onClick={() => confirmDelete(d)}><DeleteIcon /></IconButton>
             </Box>
           </Stack>
           <Typography variant="body2">
@@ -268,6 +281,20 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
             setEditingDeadline(null)
           }}>Cancelar</Button>
           <Button onClick={handleSave} variant="contained">Guardar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+        <DialogTitle>Confirmar eliminación</DialogTitle>
+        <DialogContent>
+          ¿Estás seguro que deseas eliminar el vencimiento{' '}
+          <strong>{deadlineToDelete?.deadline_types?.name || 'seleccionado'}</strong>?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteDialog(false)}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={handleDelete}>
+            Eliminar
+          </Button>
         </DialogActions>
       </Dialog>
 

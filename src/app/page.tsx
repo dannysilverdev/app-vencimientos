@@ -50,14 +50,13 @@ type Deadline = {
   frequency: number
   frequency_unit: string
   usage_daily_average: number | null
-  next_due_date: string | null // ✅ Asegúrate de incluir esto
+  next_due_date: string | null
   deadline_types: {
     name: string
     measure_by: string
     unit: string | null
   }
 }
-
 
 type DeadlineStatus = {
   text: string
@@ -109,31 +108,22 @@ export default function HomePage() {
 
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const today = new Date()
-    const last = new Date(d.last_done)
-    const estimated = new Date(last)
+    const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
 
-    if (d.deadline_types.measure_by === "date") {
-      estimated.setDate(estimated.getDate() + d.frequency)
-    } else {
-      const daily = d.usage_daily_average || 0
-      const daysUntilDue = daily > 0 ? d.frequency / daily : 0
-      estimated.setDate(estimated.getDate() + Math.round(daysUntilDue))
-    }
-
-    const diffDays = Math.ceil((estimated.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const diffDays = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity
     let variant: DeadlineStatus["variant"] = "default"
     let icon: React.ReactNode = <CheckCircle size={16} />
 
-    if (diffDays < 0) {
+    if (dueDate && diffDays < 0) {
       variant = "destructive"
       icon = <XCircle size={16} />
-    } else if (diffDays <= d.frequency * 0.3) {
+    } else if (dueDate && diffDays <= 7) {
       variant = "secondary"
       icon = <AlertTriangle size={16} />
     }
 
     return {
-      text: estimated.toISOString().split("T")[0],
+      text: dueDate ? dueDate.toISOString().split("T")[0] : "Sin fecha",
       variant,
       icon,
       daysRemaining: diffDays
@@ -190,21 +180,21 @@ export default function HomePage() {
                 const deadlines = deadlinesByEntity[entity.id] || []
                 const deadlineWithStatus = deadlines.map(d => ({
                   ...d,
-                  next_due_date: d.next_due_date, // ✅ Clave para mantener el valor
+                  next_due_date: d.next_due_date,
                   status: getDeadlineStatus(d)
                 }))
                 const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status))
+
                 if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
                 return (
                   <EntityCard
-                  key={entity.id}
-                  entity={entity}
-                  deadlines={deadlineWithStatus}
-                  fieldValues={fieldValuesByEntity[entity.id] || []}
-                  onClick={() => setOpenEntityId(entity.id)}
-                />
-
+                    key={entity.id}
+                    entity={entity}
+                    deadlines={deadlineWithStatus}
+                    fieldValues={fieldValuesByEntity[entity.id] || []}
+                    onClick={() => setOpenEntityId(entity.id)}
+                  />
                 )
               })}
             </Box>
