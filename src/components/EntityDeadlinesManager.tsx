@@ -1,4 +1,3 @@
-// src/components/EntityDeadlinesManager.tsx
 'use client'
 
 import {
@@ -15,7 +14,9 @@ import {
   MenuItem,
   InputLabel,
   FormControl,
-  TextField
+  TextField,
+  Snackbar,
+  Alert
 } from '@mui/material'
 import {
   Add as PlusIcon,
@@ -30,6 +31,12 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
   const [openAdd, setOpenAdd] = useState(false)
   const [openEdit, setOpenEdit] = useState(false)
   const [editingDeadline, setEditingDeadline] = useState<any>(null)
+
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  })
 
   const [form, setForm] = useState({
     type_id: '',
@@ -99,6 +106,12 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     setOpenEdit(false)
     resetForm()
     setEditingDeadline(null)
+
+    setSnackbar({
+      open: true,
+      message: editingDeadline ? 'Vencimiento editado correctamente' : 'Vencimiento creado correctamente',
+      severity: 'success'
+    })
   }
 
   const handleEdit = (deadline: any) => {
@@ -123,6 +136,11 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
     })
     if (!res.ok) return alert('Error al eliminar')
     await loadData()
+    setSnackbar({
+      open: true,
+      message: 'Vencimiento eliminado correctamente',
+      severity: 'success'
+    })
   }
 
   const renderForm = (
@@ -252,6 +270,17 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
           <Button onClick={handleSave} variant="contained">Guardar</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

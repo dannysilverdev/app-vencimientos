@@ -144,21 +144,24 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const id = searchParams.get('id')
+  try {
+    const { id } = await req.json()
 
-  if (!id) {
-    return NextResponse.json({ error: 'ID no proporcionado.' }, { status: 400 })
+    if (!id) {
+      return NextResponse.json({ error: 'ID no proporcionado.' }, { status: 400 })
+    }
+
+    const { error } = await supabaseAdmin
+      .from('deadlines')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({ error: 'Error inesperado.' }, { status: 500 })
   }
-
-  const { error } = await supabaseAdmin
-    .from('deadlines')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true })
 }
