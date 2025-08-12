@@ -1,3 +1,4 @@
+// src/app/page.tsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -51,6 +52,9 @@ type Deadline = {
   frequency_unit: string
   usage_daily_average: number | null
   next_due_date: string | null
+  current_usage?: number
+  // 👇 lo vamos a anexar dinámicamente (TS permite props extra)
+  baseline_usage?: number
   deadline_types: {
     name: string
     measure_by: string
@@ -88,12 +92,62 @@ export default function HomePage() {
 
       await Promise.all(
         entities.map(async (e) => {
+          // 1) Deadlines + Fields (como antes)
           const [dRes, fRes] = await Promise.all([
             fetch(`/api/deadlines?entity_id=${e.id}`),
             fetch(`/api/entity-field-values?entity_id=${e.id}`)
           ])
-          allDeadlines[e.id] = await dRes.json()
-          allFields[e.id] = await fRes.json()
+          const rawDeadlines: Deadline[] = await dRes.json()
+          const fields: FieldValue[] = await fRes.json()
+
+          // 2) Último uso global de la entidad (para mostrar "uso actual")
+          const { data: latestUsageRows, error: latestUsageErr } = await supabase
+            .from("usage_logs")
+            .select("value, date")
+            .eq("entity_id", e.id)
+            .order("date", { ascending: false })
+            .limit(1)
+
+          const currentUsage: number | null =
+            latestUsageErr ? null : (latestUsageRows?.[0]?.value ?? null)
+
+          // 3) Para cada deadline de uso, buscar baseline_usage = uso en (date <= last_done)
+          const enrichedDeadlines: Deadline[] = []
+
+          for (const d of rawDeadlines) {
+            if (d?.deadline_types?.measure_by === "usage" && d?.last_done) {
+              // Busca el uso más reciente con date <= last_done
+              const { data: baselineRows, error: baselineErr } = await supabase
+                .from("usage_logs")
+                .select("value, date")
+                .eq("entity_id", e.id)
+                .lte("date", d.last_done) // columna de fecha es 'date'
+                .order("date", { ascending: false })
+                .limit(1)
+
+              const baselineUsage: number | undefined =
+                baselineErr ? undefined : (baselineRows?.[0]?.value ?? undefined)
+
+              enrichedDeadlines.push({
+                ...d,
+                current_usage: typeof currentUsage === "number" ? currentUsage : undefined,
+                baseline_usage: baselineUsage
+              })
+            } else if (d?.deadline_types?.measure_by === "usage") {
+              // No hay last_done, al menos pasamos current_usage
+              enrichedDeadlines.push({
+                ...d,
+                current_usage: typeof currentUsage === "number" ? currentUsage : undefined,
+                baseline_usage: undefined
+              })
+            } else {
+              // Deadlines por fecha quedan igual
+              enrichedDeadlines.push(d)
+            }
+          }
+
+          allDeadlines[e.id] = enrichedDeadlines
+          allFields[e.id] = fields
         })
       )
 
@@ -191,7 +245,7 @@ export default function HomePage() {
                   <EntityCard
                     key={entity.id}
                     entity={entity}
-                    deadlines={deadlineWithStatus}
+                    deadlines={deadlines}
                     fieldValues={fieldValuesByEntity[entity.id] || []}
                     onClick={() => setOpenEntityId(entity.id)}
                   />
@@ -211,10 +265,10 @@ export default function HomePage() {
             <IconButton
               href={`/entities/${openEntityId}/edit`}
               component="a"
-              size="small"
               title="Editar entidad"
+              sx={{ p: 1.5 }}
             >
-              <Pencil size={18} />
+              <Pencil size={28} />
             </IconButton>
           )}
         </DialogTitle>
@@ -223,11 +277,7 @@ export default function HomePage() {
           {openEntity && (
             <Box display="flex" flexDirection="column" gap={3}>
               <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                <Typography
-                  variant="subtitle2"
-                  color="text.secondary"
-                  sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                >
+                <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Tag size={16} />
                   Tipo de entidad
                 </Typography>
@@ -238,11 +288,7 @@ export default function HomePage() {
 
               {openFields.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                  >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Info size={16} />
                     Información personalizada
                   </Typography>
@@ -261,29 +307,29 @@ export default function HomePage() {
 
               {openDeadlines.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                  >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Calendar size={16} />
                     Vencimientos
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
-                    {openDeadlines.map((d) => {
-                      const status = getDeadlineStatus(d)
-                      return (
-                        <li key={d.id}>
-                          <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
-                            <Typography>{d.deadline_types.name}</Typography>
-                            <Box display="flex" alignItems="center" gap={0.5}>
-                              <Clock size={12} />
-                              <Typography variant="caption">{status.text}</Typography>
-                            </Box>
+                    {openDeadlines.map((d) => (
+                      <li key={d.id}>
+                        <Box fontSize={13} py={1} sx={{ borderBottom: '1px dashed #ccc' }}>
+                          <Typography fontWeight={500}>{d.deadline_types.name}</Typography>
+                          <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
+                            <Typography variant="body2">Última realización: {d.last_done || '—'}</Typography>
+                            <Typography variant="body2">Fecha de vencimiento: {d.next_due_date || '—'}</Typography>
+                            {d.deadline_types.measure_by === "usage" && (
+                              <>
+                                <Typography variant="body2">Frecuencia: {d.frequency} {d.frequency_unit}</Typography>
+                                <Typography variant="body2">Promedio diario: {d.usage_daily_average ?? '—'}</Typography>
+                                <Typography variant="body2">Uso actual: {typeof d.current_usage === 'number' ? d.current_usage : '—'}</Typography>
+                              </>
+                            )}
                           </Box>
-                        </li>
-                      )
-                    })}
+                        </Box>
+                      </li>
+                    ))}
                   </Box>
                 </Box>
               )}

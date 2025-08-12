@@ -88,17 +88,26 @@ export default function EditEntityPage() {
 
   const handleSubmit = async () => {
     try {
+      const entityPayload = {
+        name: editedName?.trim(),
+        type_id: editedTypeId,
+        tracks_usage: Boolean(tracksUsage)
+      }
+
+      if (!entityPayload.name) {
+        throw new Error('El nombre no puede estar vacío.')
+      }
+
       const res = await fetch(`/api/entities/${entityId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editedName,
-          type_id: editedTypeId,
-          tracks_usage: tracksUsage
-        })
+        body: JSON.stringify(entityPayload)
       })
 
-      if (!res.ok) throw new Error('Error al guardar entidad')
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null)
+        throw new Error(errorData?.error || 'Error al guardar entidad')
+      }
 
       const resFields = await fetch(`/api/entity-field-values/bulk`, {
         method: 'POST',
