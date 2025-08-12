@@ -54,17 +54,22 @@ type DeadlineStatus = {
   icon: React.ReactNode
   daysRemaining: number
   label: string
-  usageLine?: string
+
+  // Solo uso
+  progress?: number            // 0..1+
+  currentUsage?: number
+  thresholdUsage?: number
+  unit?: string
 }
 
-const WARNING_PROGRESS = 0.85 // 85%
+const WARNING_PROGRESS = 0.85 // 🔧 umbral amarillo configurable
 
 function formatDateISO(d: Date) {
   return d.toISOString().split("T")[0]
 }
 
 function getDeadlineStatus(d: Deadline): DeadlineStatus {
-  const today = new Date() // ✅ Declarado una sola vez
+  const today = new Date()
 
   // --- Vencimientos por USO ---
   if (d.deadline_types.measure_by === "usage") {
@@ -72,10 +77,8 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const hasCurrent = typeof d.current_usage === "number"
     const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
 
-    // baseline: valor de uso en la fecha de last_done (si existe). Si no, cae al current_usage.
-    const baseline = typeof d.baseline_usage === "number"
-      ? d.baseline_usage
-      : (hasCurrent ? d.current_usage! : 0)
+    // ✅ Fallback corregido: si no hay baseline_usage, asumimos 0 (no el current)
+    const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
     const current = hasCurrent ? d.current_usage! : NaN
 
     if (!hasCurrent || !hasFreq) {
@@ -86,7 +89,10 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
         daysRemaining: Infinity,
         label: d.deadline_types.name,
         color: "#4caf50",
-        usageLine: "Sin datos suficientes de uso",
+        progress: 0,
+        currentUsage: hasCurrent ? current : undefined,
+        thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
+        unit,
       }
     }
 
@@ -123,7 +129,6 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
 
     const thresholdUsage = Math.round((baseline + d.frequency) * 100) / 100
     const currentRounded = Math.round(current * 100) / 100
-    const usageLine = `Uso actual: ${currentRounded} ${unit} • Vence a los ${thresholdUsage} ${unit}`
 
     return {
       text,
@@ -132,7 +137,10 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
       daysRemaining,
       label: d.deadline_types.name,
       color,
-      usageLine,
+      progress,
+      currentUsage: currentRounded,
+      thresholdUsage,
+      unit,
     }
   }
 
@@ -183,6 +191,46 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
     .map(getDeadlineStatus)
     .sort((a, b) => a.daysRemaining - b.daysRemaining)
 
+  const getProgressColor = (p: number | undefined) => {
+    if (p === undefined) return theme.palette.success.main
+    if (p >= 1) return theme.palette.error.main
+    if (p >= WARNING_PROGRESS) return theme.palette.warning.main
+    return theme.palette.success.main
+  }
+
+  const renderProgressBar = (progress?: number) => {
+    const pct = Math.max(0, Math.min(1, progress ?? 0)) * 100
+    return (
+      <Box sx={{ mt: 0.75, ml: 4 }}>
+        <Box
+          sx={{
+            position: 'relative',
+            height: 8,
+            borderRadius: 999,
+            bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: `${pct}%`,
+              bgcolor: getProgressColor(progress),
+              borderRadius: 999,
+              transition: 'width .25s ease',
+            }}
+          />
+        </Box>
+        <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: theme.palette.text.secondary }}>
+          {Math.round(pct)}%
+        </Typography>
+      </Box>
+    )
+  }
+
   return (
     <Box
       onClick={onClick}
@@ -208,6 +256,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1 }}>
         {nearestDeadlines.map((d, i) => (
           <Box key={i}>
+            {/* Encabezado de cada vencimiento */}
             <Box
               sx={{
                 display: 'flex',
@@ -225,13 +274,19 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               </span>
             </Box>
 
-            {d.usageLine && (
-              <Typography
-                variant="body2"
-                sx={{ ml: 4, mt: 0.5, fontSize: '0.75rem', color: theme.palette.text.secondary }}
-              >
-                {d.usageLine}
-              </Typography>
+            {/* Barra de progreso y línea de uso (solo para uso) */}
+            {d.progress !== undefined && (
+              <>
+                {renderProgressBar(d.progress)}
+                <Typography
+                  variant="body2"
+                  sx={{ ml: 4, mt: 0.5, fontSize: '0.75rem', color: theme.palette.text.secondary }}
+                >
+                  {typeof d.currentUsage === 'number' && typeof d.thresholdUsage === 'number'
+                    ? `Uso actual: ${d.currentUsage} ${d.unit ?? ''} • Vence a los ${d.thresholdUsage} ${d.unit ?? ''}`
+                    : `Sin datos suficientes de uso`}
+                </Typography>
+              </>
             )}
           </Box>
         ))}
