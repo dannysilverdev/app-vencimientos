@@ -19,7 +19,6 @@ import {
   Pencil,
   Circle,
   Calendar,
-  Clock,
   Info,
   Tag,
   User
@@ -204,7 +203,17 @@ export default function HomePage() {
   const openDeadlines = openEntityId ? deadlinesByEntity[openEntityId] || [] : []
 
   return (
-    <Box sx={{ mt: 4, width: "100%", px: { xs: 0, sm: 3 }, maxWidth: 1200, mx: "auto" }}>
+    <Box
+      sx={{
+        // Menor separación superior, y centrado duro con ancho máx controlado
+        mt: { xs: 2, sm: 3 },
+        width: "100%",
+        px: { xs: 1.5, sm: 3 },
+        maxWidth: 1400,
+        mx: "auto"
+      }}
+    >
+      {/* Filtros por tipo */}
       <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
         {allTypes.map(type => (
           <Chip
@@ -213,15 +222,41 @@ export default function HomePage() {
             onClick={() => setSelectedType(type === selectedType ? null : type)}
             color={selectedType === type ? "primary" : "default"}
             variant="outlined"
+            sx={{ mr: 0.5, mb: 0.5 }}
           />
         ))}
       </Stack>
 
-      <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
-        <Chip label="Todos" onClick={() => setSelectedStatus("all")} color={selectedStatus === "all" ? "primary" : "default"} icon={<Circle style={{ fontSize: 12 }} />} />
-        <Chip label="Al día" onClick={() => setSelectedStatus("good")} color={selectedStatus === "good" ? "success" : "default"} icon={<CheckCircle size={14} />} />
-        <Chip label="Pronto" onClick={() => setSelectedStatus("warning")} color={selectedStatus === "warning" ? "warning" : "default"} icon={<AlertTriangle size={14} />} />
-        <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
+      {/* Filtros por estado */}
+      <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: "wrap" }}>
+        <Chip
+          label="Todos"
+          onClick={() => setSelectedStatus("all")}
+          color={selectedStatus === "all" ? "primary" : "default"}
+          icon={<Circle style={{ fontSize: 12 }} />}
+          sx={{ mr: 0.5, mb: 0.5 }}
+        />
+        <Chip
+          label="Al día"
+          onClick={() => setSelectedStatus("good")}
+          color={selectedStatus === "good" ? "success" : "default"}
+          icon={<CheckCircle size={14} />}
+          sx={{ mr: 0.5, mb: 0.5 }}
+        />
+        <Chip
+          label="Pronto"
+          onClick={() => setSelectedStatus("warning")}
+          color={selectedStatus === "warning" ? "warning" : "default"}
+          icon={<AlertTriangle size={14} />}
+          sx={{ mr: 0.5, mb: 0.5 }}
+        />
+        <Chip
+          label="Vencidas"
+          onClick={() => setSelectedStatus("overdue")}
+          color={selectedStatus === "overdue" ? "error" : "default"}
+          icon={<XCircle size={14} />}
+          sx={{ mr: 0.5, mb: 0.5 }}
+        />
       </Stack>
 
       {Object.entries(grouped)
@@ -229,7 +264,20 @@ export default function HomePage() {
         .map(([typeName, group]) => (
           <Box key={typeName} sx={{ mb: 5 }}>
             <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>{typeName}</Typography>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "center" }}>
+
+            {/* NUEVA DISPOSICIÓN: Grid fluido y simétrico sin MUI Grid */}
+            <Box
+              sx={{
+                display: "grid",
+                // Tarjetas autoajustables: mínimo 280-320px, ocupan 1fr si sobra
+                gridTemplateColumns: {
+                  xs: "repeat(auto-fill, minmax(260px, 1fr))",
+                  sm: "repeat(auto-fill, minmax(300px, 1fr))"
+                },
+                gap: 2,
+                alignItems: "stretch"
+              }}
+            >
               {group.map(entity => {
                 const deadlines = deadlinesByEntity[entity.id] || []
                 const deadlineWithStatus = deadlines.map(d => ({
@@ -255,6 +303,7 @@ export default function HomePage() {
           </Box>
         ))}
 
+      {/* Modal de ficha */}
       <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Box display="flex" alignItems="center" gap={1}>
