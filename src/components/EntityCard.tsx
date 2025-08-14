@@ -1,9 +1,13 @@
 // src/components/EntityCard.tsx
+"use client"
+
+import React, { useMemo, useState } from "react"
 import {
   Box,
   Typography,
   useTheme,
   useMediaQuery,
+  IconButton,
 } from "@mui/material"
 import {
   AlertTriangle,
@@ -77,7 +81,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const hasCurrent = typeof d.current_usage === "number"
     const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
 
-    // ✅ Fallback corregido: si no hay baseline_usage, asumimos 0 (no el current)
+    // ✅ Fallback: si no hay baseline_usage, consideramos 0
     const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
     const current = hasCurrent ? d.current_usage! : NaN
 
@@ -146,7 +150,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
 
   // --- Vencimientos por FECHA ---
   const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-  const diffDays = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity
+  const diffDays = dueDate ? Math.ceil((dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : Infinity
 
   let variant: DeadlineStatus["variant"] = "default"
   let color = "#4caf50"
@@ -181,15 +185,28 @@ type Props = {
 
 export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
-  const matches = useMediaQuery(theme.breakpoints.down('sm'))
+  const matches = useMediaQuery(theme.breakpoints.down("sm"))
+  const [expanded, setExpanded] = useState(false)
 
-  const visibleFields = fieldValues
-    .filter(f => f.entity_fields?.show_in_card && f.value?.trim())
-    .slice(0, 3)
+  // ⚙️ Campos visibles (chips) – mostramos hasta 6 y el resto lo agrupamos
+  const chips = useMemo(
+    () => fieldValues.filter(f => f.entity_fields?.show_in_card && f.value?.trim()),
+    [fieldValues]
+  )
+  const visibleChips = chips.slice(0, 6)
+  const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
-  const nearestDeadlines = deadlines
-    .map(getDeadlineStatus)
-    .sort((a, b) => a.daysRemaining - b.daysRemaining)
+  // 🗓️ Deadlines ordenados por proximidad
+  const sorted = useMemo(
+    () =>
+      deadlines
+        .map(getDeadlineStatus)
+        .sort((a, b) => a.daysRemaining - b.daysRemaining),
+    [deadlines]
+  )
+
+  // Cuántos mostramos sin expandir
+  const visibleCount = expanded ? sorted.length : Math.min(sorted.length, 2)
 
   const getProgressColor = (p: number | undefined) => {
     if (p === undefined) return theme.palette.success.main
@@ -201,34 +218,41 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const renderProgressBar = (progress?: number) => {
     const pct = Math.max(0, Math.min(1, progress ?? 0)) * 100
     return (
-      <Box sx={{ mt: 0.75, ml: 4 }}>
+      <Box sx={{ mt: 1.0 }}>
         <Box
           sx={{
-            position: 'relative',
+            position: "relative",
             height: 8,
             borderRadius: 999,
-            bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
-            overflow: 'hidden',
+            bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.200",
+            overflow: "hidden",
           }}
         >
           <Box
             sx={{
-              position: 'absolute',
+              position: "absolute",
               left: 0,
               top: 0,
               bottom: 0,
               width: `${pct}%`,
               bgcolor: getProgressColor(progress),
               borderRadius: 999,
-              transition: 'width .25s ease',
+              transition: "width .25s ease",
             }}
           />
         </Box>
-        <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: theme.palette.text.secondary }}>
+        <Typography variant="caption" sx={{ mt: 0.5, display: "block", color: theme.palette.text.secondary }}>
           {Math.round(pct)}%
         </Typography>
       </Box>
     )
+  }
+
+  // 🎨 Mini badge por estado
+  const statusBg = (variant: DeadlineStatus["variant"]) => {
+    if (variant === "destructive") return theme.palette.error.main + "22"
+    if (variant === "secondary") return theme.palette.warning.main + "22"
+    return theme.palette.success.main + "22"
   }
 
   return (
@@ -239,76 +263,161 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         borderRadius: 2,
         p: 2,
         boxShadow: 2,
-        minWidth: 250,
-        maxWidth: matches ? '100%' : 380,
-        cursor: 'pointer',
-        transition: 'transform 0.2s',
-        '&:hover': { transform: 'scale(1.01)' },
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
+        minWidth: 260,
+        maxWidth: matches ? "100%" : 420,
+        cursor: "pointer",
+        transition: "transform 0.2s, box-shadow .2s",
+        "&:hover": { transform: "translateY(-2px)", boxShadow: 4 },
+        display: "grid",
+        gridTemplateRows: "auto 1fr auto",
+        rowGap: 1.25,
+        overflow: "visible",
       }}
     >
-      <Typography variant="h6" fontWeight={600} gutterBottom>
-        {entity.name}
-      </Typography>
+      {/* Header: nombre + contador de vencimientos */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+        <Typography
+          variant="h6"
+          fontWeight={700}
+          sx={{
+            m: 0,
+            lineHeight: 1.2,
+            wordBreak: "break-word",
+            whiteSpace: "normal",
+          }}
+        >
+          {entity.name}
+        </Typography>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1 }}>
-        {nearestDeadlines.map((d, i) => (
-          <Box key={i}>
-            {/* Encabezado de cada vencimiento */}
+        {!!sorted.length && (
+          <Box
+            sx={{
+              px: 1,
+              py: 0.25,
+              borderRadius: 999,
+              bgcolor: statusBg(sorted[0].variant),
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.75,
+            }}
+          >
+            {sorted[0].icon}
+            {sorted[0].daysRemaining < 0 ? "Vencido" : "Activo"}
+          </Box>
+        )}
+      </Box>
+
+      {/* Cuerpo: lista de vencimientos (envoltorio multiparárafo sin recorte) */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.25,
+          mt: 0.5,
+          overflow: "visible",
+        }}
+      >
+        {sorted.slice(0, visibleCount).map((d, i) => (
+          <Box key={i} sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: '0.875rem',
+                display: "flex",
+                alignItems: "flex-start",
                 gap: 1,
                 color: d.color,
               }}
             >
-              {d.icon}
-              <span>
+              <Box sx={{ mt: "2px" }}>{d.icon}</Box>
+              <Typography
+                variant="body2"
+                sx={{
+                  m: 0,
+                  lineHeight: 1.3,
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                }}
+              >
+                <strong>{d.label}</strong>{" "}
                 {d.daysRemaining < 0
-                  ? `${d.label} - VENCIÓ el ${d.text}`
-                  : `${d.label} - ${isFinite(d.daysRemaining) ? d.daysRemaining : '—'} días para vencer / ${d.text}`}
-              </span>
+                  ? <>— Venció el <b>{d.text}</b></>
+                  : isFinite(d.daysRemaining)
+                    ? <>— {d.daysRemaining} días para vencer — <b>{d.text}</b></>
+                    : <>— <b>{d.text}</b></>}
+              </Typography>
             </Box>
 
-            {/* Barra de progreso y línea de uso (solo para uso) */}
+            {/* Barra de progreso + leyenda (solo uso) */}
             {d.progress !== undefined && (
               <>
                 {renderProgressBar(d.progress)}
                 <Typography
-                  variant="body2"
-                  sx={{ ml: 4, mt: 0.5, fontSize: '0.75rem', color: theme.palette.text.secondary }}
+                  variant="caption"
+                  sx={{ mt: 0.5, color: theme.palette.text.secondary }}
                 >
-                  {typeof d.currentUsage === 'number' && typeof d.thresholdUsage === 'number'
-                    ? `Uso actual: ${d.currentUsage} ${d.unit ?? ''} • Vence a los ${d.thresholdUsage} ${d.unit ?? ''}`
-                    : `Sin datos suficientes de uso`}
+                  {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
+                    ? <>Uso actual: <b>{d.currentUsage}</b> {d.unit ?? ""} • Vence a los <b>{d.thresholdUsage}</b> {d.unit ?? ""}</>
+                    : "Sin datos suficientes de uso"}
                 </Typography>
               </>
             )}
           </Box>
         ))}
+
+        {sorted.length > 2 && (
+          <Box
+            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
+            sx={{
+              mt: 0.25,
+              alignSelf: "flex-start",
+              px: 1,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: theme.palette.mode === "dark" ? "grey.900" : "grey.100",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              userSelect: "none",
+            }}
+          >
+            {expanded ? "Ver menos" : `Ver más (${sorted.length - 2})`}
+          </Box>
+        )}
       </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-        {visibleFields.map((f, i) => (
+      {/* Pie: chips de campos personalizados – multiline sin recortes */}
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
+        {visibleChips.map((f, i) => (
           <Box
             key={i}
             sx={{
-              px: 1.5,
+              px: 1.25,
               py: 0.5,
-              bgcolor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.200',
+              bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.200",
               color: theme.palette.text.primary,
               borderRadius: 999,
-              fontSize: '0.75rem',
-              fontWeight: 500
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              lineHeight: 1.2,
             }}
           >
             {f.value}
           </Box>
         ))}
+        {hiddenChipsCount > 0 && (
+          <Box
+            sx={{
+              px: 1.25,
+              py: 0.5,
+              borderRadius: 999,
+              bgcolor: theme.palette.mode === "dark" ? "grey.900" : "grey.100",
+              fontSize: "0.75rem",
+              fontWeight: 700,
+            }}
+          >
+            +{hiddenChipsCount}
+          </Box>
+        )}
       </Box>
     </Box>
   )
