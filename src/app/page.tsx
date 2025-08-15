@@ -1,10 +1,9 @@
 // src/app/page.tsx
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Chip,
-  Stack,
   Typography,
   Box,
   Dialog,
@@ -26,6 +25,7 @@ import {
 import { supabase } from "@/lib/supabaseClient"
 import EntityCard from "@/components/EntityCard"
 
+// ======= Tipos =======
 type Entity = {
   id: string
   name: string
@@ -52,7 +52,6 @@ type Deadline = {
   usage_daily_average: number | null
   next_due_date: string | null
   current_usage?: number
-  // 👇 lo vamos a anexar dinámicamente (TS permite props extra)
   baseline_usage?: number
   deadline_types: {
     name: string
@@ -68,6 +67,34 @@ type DeadlineStatus = {
   daysRemaining: number
 }
 
+// ======= Config =======
+const DEADLINE_WARNING_DAYS = 30 // ⚠️ Amarillo si faltan ≤ 30 días (vencimientos por fecha)
+
+// ======= Helpers UI =======
+const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.75 }) => (
+  <Box
+    component="nav"
+    aria-label="Filtros"
+    sx={{
+      display: "flex",
+      gap,
+      overflowX: { xs: "auto", md: "visible" },
+      py: 0.5,
+      px: { xs: 1, sm: 0 },
+      scrollbarWidth: "thin",
+      scrollSnapType: { xs: "x mandatory", md: "none" },
+      "& > *": {
+        flex: "0 0 auto",
+        scrollSnapAlign: { xs: "start", md: "none" },
+      },
+      mb: 1.5,
+    }}
+  >
+    {children}
+  </Box>
+)
+
+// ======= Página =======
 export default function HomePage() {
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "warning" | "overdue">("all")
@@ -91,7 +118,7 @@ export default function HomePage() {
 
       await Promise.all(
         entities.map(async (e) => {
-          // 1) Deadlines + Fields (como antes)
+          // 1) Deadlines + Fields
           const [dRes, fRes] = await Promise.all([
             fetch(`/api/deadlines?entity_id=${e.id}`),
             fetch(`/api/entity-field-values?entity_id=${e.id}`)
@@ -99,7 +126,7 @@ export default function HomePage() {
           const rawDeadlines: Deadline[] = await dRes.json()
           const fields: FieldValue[] = await fRes.json()
 
-          // 2) Último uso global de la entidad (para mostrar "uso actual")
+          // 2) Último uso global
           const { data: latestUsageRows, error: latestUsageErr } = await supabase
             .from("usage_logs")
             .select("value, date")
@@ -110,17 +137,16 @@ export default function HomePage() {
           const currentUsage: number | null =
             latestUsageErr ? null : (latestUsageRows?.[0]?.value ?? null)
 
-          // 3) Para cada deadline de uso, buscar baseline_usage = uso en (date <= last_done)
+          // 3) Enriquecer deadlines de uso con baseline_usage
           const enrichedDeadlines: Deadline[] = []
 
           for (const d of rawDeadlines) {
             if (d?.deadline_types?.measure_by === "usage" && d?.last_done) {
-              // Busca el uso más reciente con date <= last_done
               const { data: baselineRows, error: baselineErr } = await supabase
                 .from("usage_logs")
                 .select("value, date")
                 .eq("entity_id", e.id)
-                .lte("date", d.last_done) // columna de fecha es 'date'
+                .lte("date", d.last_done)
                 .order("date", { ascending: false })
                 .limit(1)
 
@@ -133,14 +159,12 @@ export default function HomePage() {
                 baseline_usage: baselineUsage
               })
             } else if (d?.deadline_types?.measure_by === "usage") {
-              // No hay last_done, al menos pasamos current_usage
               enrichedDeadlines.push({
                 ...d,
                 current_usage: typeof currentUsage === "number" ? currentUsage : undefined,
                 baseline_usage: undefined
               })
             } else {
-              // Deadlines por fecha quedan igual
               enrichedDeadlines.push(d)
             }
           }
@@ -159,6 +183,7 @@ export default function HomePage() {
     }
   }, [entities])
 
+  // ======= Estado por deadline (solo FECHA aquí) =======
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const today = new Date()
     const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
@@ -168,10 +193,10 @@ export default function HomePage() {
     let icon: React.ReactNode = <CheckCircle size={16} />
 
     if (dueDate && diffDays < 0) {
-      variant = "destructive"
+      variant = "destructive"      // rojo si venció
       icon = <XCircle size={16} />
-    } else if (dueDate && diffDays <= 7) {
-      variant = "secondary"
+    } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
+      variant = "secondary"        // amarillo si faltan ≤ 30 días
       icon = <AlertTriangle size={16} />
     }
 
@@ -189,6 +214,7 @@ export default function HomePage() {
     return "good"
   }
 
+  // Agrupar por tipo
   const grouped = entities.reduce<Record<string, Entity[]>>((acc, entity) => {
     const typeName = entity.entity_types?.name || "Sin clasificar"
     if (!acc[typeName]) acc[typeName] = []
@@ -196,7 +222,13 @@ export default function HomePage() {
     return acc
   }, {})
 
-  const allTypes = Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
+  // Tipos ordenados alfabéticamente (estable)
+  const allTypesSorted = useMemo(
+    () =>
+      Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
+        .sort((a, b) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" })),
+    [entities]
+  )
 
   const openEntity = openEntityId ? entities.find(e => e.id === openEntityId) : null
   const openFields = openEntityId ? fieldValuesByEntity[openEntityId] || [] : []
@@ -205,7 +237,6 @@ export default function HomePage() {
   return (
     <Box
       sx={{
-        // Menor separación superior, y centrado duro con ancho máx controlado
         mt: { xs: 2, sm: 3 },
         width: "100%",
         px: { xs: 1.5, sm: 3 },
@@ -213,63 +244,62 @@ export default function HomePage() {
         mx: "auto"
       }}
     >
-      {/* Filtros por tipo */}
-      <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
-        {allTypes.map(type => (
-          <Chip
-            key={type}
-            label={type}
-            onClick={() => setSelectedType(type === selectedType ? null : type)}
-            color={selectedType === type ? "primary" : "default"}
-            variant="outlined"
-            sx={{ mr: 0.5, mb: 0.5 }}
-          />
-        ))}
-      </Stack>
 
-      {/* Filtros por estado */}
-      <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: "wrap" }}>
+      {/* Fila 1: Filtros de estado (orden fijo) */}
+      <HScroll gap={0.75}>
         <Chip
           label="Todos"
           onClick={() => setSelectedStatus("all")}
           color={selectedStatus === "all" ? "primary" : "default"}
           icon={<Circle style={{ fontSize: 12 }} />}
-          sx={{ mr: 0.5, mb: 0.5 }}
+          sx={{ mr: 0.25 }}
         />
         <Chip
           label="Al día"
           onClick={() => setSelectedStatus("good")}
           color={selectedStatus === "good" ? "success" : "default"}
           icon={<CheckCircle size={14} />}
-          sx={{ mr: 0.5, mb: 0.5 }}
+          sx={{ mr: 0.25 }}
         />
         <Chip
           label="Pronto"
           onClick={() => setSelectedStatus("warning")}
           color={selectedStatus === "warning" ? "warning" : "default"}
           icon={<AlertTriangle size={14} />}
-          sx={{ mr: 0.5, mb: 0.5 }}
+          sx={{ mr: 0.25 }}
         />
         <Chip
           label="Vencidas"
           onClick={() => setSelectedStatus("overdue")}
           color={selectedStatus === "overdue" ? "error" : "default"}
           icon={<XCircle size={14} />}
-          sx={{ mr: 0.5, mb: 0.5 }}
         />
-      </Stack>
+      </HScroll>
 
+      {/* Fila 2: Filtros por tipo (orden alfabético) */}
+      <HScroll gap={0.75}>
+        {allTypesSorted.map(type => (
+          <Chip
+            key={type}
+            label={type}
+            onClick={() => setSelectedType(type === selectedType ? null : type)}
+            color={selectedType === type ? "primary" : "default"}
+            variant="outlined"
+          />
+        ))}
+      </HScroll>
+
+      {/* Listado por grupo */}
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
           <Box key={typeName} sx={{ mb: 5 }}>
             <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>{typeName}</Typography>
 
-            {/* NUEVA DISPOSICIÓN: Grid fluido y simétrico sin MUI Grid */}
+            {/* Grid fluido y simétrico */}
             <Box
               sx={{
                 display: "grid",
-                // Tarjetas autoajustables: mínimo 280-320px, ocupan 1fr si sobra
                 gridTemplateColumns: {
                   xs: "repeat(auto-fill, minmax(260px, 1fr))",
                   sm: "repeat(auto-fill, minmax(300px, 1fr))"
