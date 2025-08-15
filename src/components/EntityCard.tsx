@@ -7,7 +7,6 @@ import {
   Typography,
   useTheme,
   useMediaQuery,
-  IconButton,
 } from "@mui/material"
 import {
   AlertTriangle,
@@ -58,15 +57,13 @@ type DeadlineStatus = {
   icon: React.ReactNode
   daysRemaining: number
   label: string
-
-  // Solo uso
-  progress?: number            // 0..1+
+  unit?: string
+  progress?: number
   currentUsage?: number
   thresholdUsage?: number
-  unit?: string
 }
 
-const WARNING_PROGRESS = 0.85 // 🔧 umbral amarillo configurable
+const WARNING_PROGRESS = 0.85
 
 function formatDateISO(d: Date) {
   return d.toISOString().split("T")[0]
@@ -75,13 +72,10 @@ function formatDateISO(d: Date) {
 function getDeadlineStatus(d: Deadline): DeadlineStatus {
   const today = new Date()
 
-  // --- Vencimientos por USO ---
   if (d.deadline_types.measure_by === "usage") {
     const unit = d.deadline_types.unit || d.frequency_unit || ""
     const hasCurrent = typeof d.current_usage === "number"
     const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
-
-    // ✅ Fallback: si no hay baseline_usage, consideramos 0
     const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
     const current = hasCurrent ? d.current_usage! : NaN
 
@@ -103,7 +97,6 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const effectiveUsage = Math.max(0, current - baseline)
     const progress = effectiveUsage / d.frequency
 
-    // Proyección de fecha (si hay promedio diario)
     let text = "Sin fecha"
     let daysRemaining = Infinity
     const avg = typeof d.usage_daily_average === "number" ? d.usage_daily_average : 0
@@ -140,17 +133,16 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
       icon,
       daysRemaining,
       label: d.deadline_types.name,
+      unit,
       color,
       progress,
       currentUsage: currentRounded,
       thresholdUsage,
-      unit,
     }
   }
 
-  // --- Vencimientos por FECHA ---
   const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-  const diffDays = dueDate ? Math.ceil((dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : Infinity
+  const diffDays = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity
 
   let variant: DeadlineStatus["variant"] = "default"
   let color = "#4caf50"
@@ -172,6 +164,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     icon,
     daysRemaining: diffDays,
     label: d.deadline_types.name,
+    unit: d.deadline_types.unit || d.frequency_unit || undefined,
     color,
   }
 }
@@ -188,7 +181,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const matches = useMediaQuery(theme.breakpoints.down("sm"))
   const [expanded, setExpanded] = useState(false)
 
-  // ⚙️ Campos visibles (chips) – mostramos hasta 6 y el resto lo agrupamos
   const chips = useMemo(
     () => fieldValues.filter(f => f.entity_fields?.show_in_card && f.value?.trim()),
     [fieldValues]
@@ -196,7 +188,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const visibleChips = chips.slice(0, 6)
   const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
-  // 🗓️ Deadlines ordenados por proximidad
   const sorted = useMemo(
     () =>
       deadlines
@@ -205,7 +196,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
     [deadlines]
   )
 
-  // Cuántos mostramos sin expandir
   const visibleCount = expanded ? sorted.length : Math.min(sorted.length, 2)
 
   const getProgressColor = (p: number | undefined) => {
@@ -217,10 +207,12 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
 
   const renderProgressBar = (progress?: number) => {
     const pct = Math.max(0, Math.min(1, progress ?? 0)) * 100
+    const fillColor = getProgressColor(progress)
     return (
-      <Box sx={{ mt: 1.0 }}>
+      <Box sx={{ mt: 1.0, display: "flex", alignItems: "center", gap: 1 }}>
         <Box
           sx={{
+            flex: 1,
             position: "relative",
             height: 8,
             borderRadius: 999,
@@ -235,24 +227,25 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               top: 0,
               bottom: 0,
               width: `${pct}%`,
-              bgcolor: getProgressColor(progress),
+              bgcolor: fillColor,
               borderRadius: 999,
               transition: "width .25s ease",
             }}
           />
         </Box>
-        <Typography variant="caption" sx={{ mt: 0.5, display: "block", color: theme.palette.text.secondary }}>
+        <Typography
+          variant="caption"
+          sx={{
+            fontWeight: 700,
+            color: theme.palette.text.secondary,
+            minWidth: 30,
+            textAlign: "right"
+          }}
+        >
           {Math.round(pct)}%
         </Typography>
       </Box>
     )
-  }
-
-  // 🎨 Mini badge por estado
-  const statusBg = (variant: DeadlineStatus["variant"]) => {
-    if (variant === "destructive") return theme.palette.error.main + "22"
-    if (variant === "secondary") return theme.palette.warning.main + "22"
-    return theme.palette.success.main + "22"
   }
 
   return (
@@ -271,93 +264,40 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         display: "grid",
         gridTemplateRows: "auto 1fr auto",
         rowGap: 1.25,
-        overflow: "visible",
       }}
     >
-      {/* Header: nombre + contador de vencimientos */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-        <Typography
-          variant="h6"
-          fontWeight={700}
-          sx={{
-            m: 0,
-            lineHeight: 1.2,
-            wordBreak: "break-word",
-            whiteSpace: "normal",
-          }}
-        >
-          {entity.name}
-        </Typography>
-
-        {!!sorted.length && (
-          <Box
-            sx={{
-              px: 1,
-              py: 0.25,
-              borderRadius: 999,
-              bgcolor: statusBg(sorted[0].variant),
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.75,
-            }}
-          >
-            {sorted[0].icon}
-            {sorted[0].daysRemaining < 0 ? "Vencido" : "Activo"}
-          </Box>
-        )}
-      </Box>
-
-      {/* Cuerpo: lista de vencimientos (envoltorio multiparárafo sin recorte) */}
-      <Box
+      <Typography
+        variant="h6"
+        fontWeight={700}
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 1.25,
-          mt: 0.5,
-          overflow: "visible",
+          m: 0,
+          lineHeight: 1.2,
+          wordBreak: "break-word",
+          whiteSpace: "normal",
         }}
       >
-        {sorted.slice(0, visibleCount).map((d, i) => (
-          <Box key={i} sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 1,
-                color: d.color,
-              }}
-            >
-              <Box sx={{ mt: "2px" }}>{d.icon}</Box>
-              <Typography
-                variant="body2"
-                sx={{
-                  m: 0,
-                  lineHeight: 1.3,
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
-                }}
-              >
-                <strong>{d.label}</strong>{" "}
-                {d.daysRemaining < 0
-                  ? <>— Venció el <b>{d.text}</b></>
-                  : isFinite(d.daysRemaining)
-                    ? <>— {d.daysRemaining} días para vencer — <b>{d.text}</b></>
-                    : <>— <b>{d.text}</b></>}
-              </Typography>
-            </Box>
+        {entity.name}
+      </Typography>
 
-            {/* Barra de progreso + leyenda (solo uso) */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mt: 0.5 }}>
+        {sorted.slice(0, visibleCount).map((d, i) => (
+          <Box key={i} sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: d.color }}>
+              {d.unit ? `${d.label} (${d.unit})` : d.label}
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+              {d.daysRemaining < 0
+                ? `Venció el ${d.text}`
+                : isFinite(d.daysRemaining)
+                  ? `${d.daysRemaining} días para vencer el ${d.text}`
+                  : `Sin fecha`}
+            </Typography>
             {d.progress !== undefined && (
               <>
                 {renderProgressBar(d.progress)}
-                <Typography
-                  variant="caption"
-                  sx={{ mt: 0.5, color: theme.palette.text.secondary }}
-                >
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
                   {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
-                    ? <>Uso actual: <b>{d.currentUsage}</b> {d.unit ?? ""} • Vence a los <b>{d.thresholdUsage}</b> {d.unit ?? ""}</>
+                    ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Vence a los ${d.thresholdUsage} ${d.unit ?? ""}`
                     : "Sin datos suficientes de uso"}
                 </Typography>
               </>
@@ -385,7 +325,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         )}
       </Box>
 
-      {/* Pie: chips de campos personalizados – multiline sin recortes */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 1 }}>
         {visibleChips.map((f, i) => (
           <Box
@@ -398,7 +337,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               borderRadius: 999,
               fontSize: "0.75rem",
               fontWeight: 600,
-              lineHeight: 1.2,
             }}
           >
             {f.value}
