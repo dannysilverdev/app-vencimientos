@@ -1,6 +1,7 @@
 // src/app/page.tsx
 "use client"
 
+import type React from "react"
 import { useEffect, useMemo, useState } from "react"
 import {
   Chip,
@@ -9,7 +10,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton
+  IconButton,
+  useMediaQuery,
+  useTheme
 } from "@mui/material"
 import {
   AlertTriangle,
@@ -87,7 +90,7 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
         flex: "0 0 auto",
         scrollSnapAlign: { xs: "start", md: "none" },
       },
-      mb: 1.5,
+      mb: 1.25,
     }}
   >
     {children}
@@ -96,6 +99,9 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
 
 // ======= Página =======
 export default function HomePage() {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "warning" | "overdue">("all")
   const [entities, setEntities] = useState<Entity[]>([])
@@ -118,7 +124,6 @@ export default function HomePage() {
 
       await Promise.all(
         entities.map(async (e) => {
-          // 1) Deadlines + Fields
           const [dRes, fRes] = await Promise.all([
             fetch(`/api/deadlines?entity_id=${e.id}`),
             fetch(`/api/entity-field-values?entity_id=${e.id}`)
@@ -126,7 +131,6 @@ export default function HomePage() {
           const rawDeadlines: Deadline[] = await dRes.json()
           const fields: FieldValue[] = await fRes.json()
 
-          // 2) Último uso global
           const { data: latestUsageRows, error: latestUsageErr } = await supabase
             .from("usage_logs")
             .select("value, date")
@@ -137,7 +141,6 @@ export default function HomePage() {
           const currentUsage: number | null =
             latestUsageErr ? null : (latestUsageRows?.[0]?.value ?? null)
 
-          // 3) Enriquecer deadlines de uso con baseline_usage
           const enrichedDeadlines: Deadline[] = []
 
           for (const d of rawDeadlines) {
@@ -183,7 +186,6 @@ export default function HomePage() {
     }
   }, [entities])
 
-  // ======= Estado por deadline (solo FECHA aquí) =======
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const today = new Date()
     const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
@@ -193,10 +195,10 @@ export default function HomePage() {
     let icon: React.ReactNode = <CheckCircle size={16} />
 
     if (dueDate && diffDays < 0) {
-      variant = "destructive"      // rojo si venció
+      variant = "destructive"
       icon = <XCircle size={16} />
     } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-      variant = "secondary"        // amarillo si faltan ≤ 30 días
+      variant = "secondary"
       icon = <AlertTriangle size={16} />
     }
 
@@ -214,7 +216,6 @@ export default function HomePage() {
     return "good"
   }
 
-  // Agrupar por tipo
   const grouped = entities.reduce<Record<string, Entity[]>>((acc, entity) => {
     const typeName = entity.entity_types?.name || "Sin clasificar"
     if (!acc[typeName]) acc[typeName] = []
@@ -222,7 +223,6 @@ export default function HomePage() {
     return acc
   }, {})
 
-  // Tipos ordenados alfabéticamente (estable)
   const allTypesSorted = useMemo(
     () =>
       Array.from(new Set(entities.map(e => e.entity_types?.name || "Sin clasificar")))
@@ -237,19 +237,18 @@ export default function HomePage() {
   return (
     <Box
       sx={{
-        mt: { xs: 2, sm: 3 },
+        mt: { xs: 0.5, sm: 3 },
         width: "100%",
-        px: { xs: 1.5, sm: 3 },
-        maxWidth: 1400,
+        maxWidth: { xs: "100%", sm: 1400 },
+        px: { xs: 0, sm: 3 },
         mx: "auto"
       }}
     >
-
       {/* ===== Barra de filtros sticky ===== */}
       <Box
         sx={{
           position: "sticky",
-          top: 8,                // ajusta según el alto de tu header
+          top: 8,
           zIndex: 10,
           bgcolor: "background.default",
           borderBottom: "1px solid",
@@ -257,40 +256,16 @@ export default function HomePage() {
           pt: 1,
           pb: 1,
           mb: 2,
+          px: { xs: 0, sm: 0 }
         }}
       >
-        {/* Fila 1: Estado (orden fijo) */}
         <HScroll gap={0.75}>
-          <Chip
-            label="Todos"
-            onClick={() => setSelectedStatus("all")}
-            color={selectedStatus === "all" ? "primary" : "default"}
-            icon={<Circle style={{ fontSize: 12 }} />}
-            sx={{ mr: 0.25 }}
-          />
-          <Chip
-            label="Al día"
-            onClick={() => setSelectedStatus("good")}
-            color={selectedStatus === "good" ? "success" : "default"}
-            icon={<CheckCircle size={14} />}
-            sx={{ mr: 0.25 }}
-          />
-          <Chip
-            label="Pronto"
-            onClick={() => setSelectedStatus("warning")}
-            color={selectedStatus === "warning" ? "warning" : "default"}
-            icon={<AlertTriangle size={14} />}
-            sx={{ mr: 0.25 }}
-          />
-          <Chip
-            label="Vencidas"
-            onClick={() => setSelectedStatus("overdue")}
-            color={selectedStatus === "overdue" ? "error" : "default"}
-            icon={<XCircle size={14} />}
-          />
+          <Chip label="Todos" onClick={() => setSelectedStatus("all")} color={selectedStatus === "all" ? "primary" : "default"} icon={<Circle style={{ fontSize: 12 }} />} />
+          <Chip label="Al día" onClick={() => setSelectedStatus("good")} color={selectedStatus === "good" ? "success" : "default"} icon={<CheckCircle size={14} />} />
+          <Chip label="Pronto" onClick={() => setSelectedStatus("warning")} color={selectedStatus === "warning" ? "warning" : "default"} icon={<AlertTriangle size={14} />} />
+          <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
         </HScroll>
 
-        {/* Fila 2: Tipos (orden alfabético) */}
         <HScroll gap={0.75}>
           {allTypesSorted.map(type => (
             <Chip
@@ -304,23 +279,20 @@ export default function HomePage() {
         </HScroll>
       </Box>
 
-      {/* Listado por grupo */}
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
           <Box key={typeName} sx={{ mb: 5 }}>
-            <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>{typeName}</Typography>
-
-            {/* Grid fluido y simétrico */}
+            <Typography variant="h6" sx={{ mb: 2, color: "primary.main", px: { xs: 1, sm: 0 } }}>
+              {typeName}
+            </Typography>
             <Box
               sx={{
                 display: "grid",
-                gridTemplateColumns: {
-                  xs: "repeat(auto-fill, minmax(260px, 1fr))",
-                  sm: "repeat(auto-fill, minmax(300px, 1fr))"
-                },
-                gap: 2,
-                alignItems: "stretch"
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(320px, 1fr))" },
+                gap: { xs: 1.25, sm: 2 },
+                alignItems: "stretch",
+                justifyItems: "stretch"
               }}
             >
               {group.map(entity => {
@@ -331,17 +303,17 @@ export default function HomePage() {
                   status: getDeadlineStatus(d)
                 }))
                 const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status))
-
                 if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
                 return (
-                  <EntityCard
-                    key={entity.id}
-                    entity={entity}
-                    deadlines={deadlines}
-                    fieldValues={fieldValuesByEntity[entity.id] || []}
-                    onClick={() => setOpenEntityId(entity.id)}
-                  />
+                  <Box key={entity.id} sx={{ width: "100%", mx: { xs: 0, sm: "auto" } }}>
+                    <EntityCard
+                      entity={entity}
+                      deadlines={deadlines}
+                      fieldValues={fieldValuesByEntity[entity.id] || []}
+                      onClick={() => setOpenEntityId(entity.id)} // ✅ Prop obligatoria
+                    />
+                  </Box>
                 )
               })}
             </Box>
@@ -349,45 +321,41 @@ export default function HomePage() {
         ))}
 
       {/* Modal de ficha */}
-      <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={!!openEntityId}
+        onClose={() => setOpenEntityId(null)}
+        maxWidth={isMobile ? "xs" : "sm"} // 👈 más compacto en mobile
+        fullWidth
+      >
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <User size={20} />
             Ficha de entidad
           </Box>
           {openEntityId && (
-            <IconButton
-              href={`/entities/${openEntityId}/edit`}
-              component="a"
-              title="Editar entidad"
-              sx={{ p: 1.5 }}
-            >
+            <IconButton href={`/entities/${openEntityId}/edit`} component="a" title="Editar entidad" sx={{ p: 1.5 }}>
               <Pencil size={28} />
             </IconButton>
           )}
         </DialogTitle>
-
         <DialogContent dividers>
           {openEntity && (
             <Box display="flex" flexDirection="column" gap={3}>
               <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Tag size={16} />
-                  Tipo de entidad
+                  <Tag size={16} /> Tipo de entidad
                 </Typography>
                 <Typography variant="body2" fontWeight="500">
                   {openEntity.entity_types?.name || "Sin tipo"}
                 </Typography>
               </Box>
-
               {openFields.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Info size={16} />
-                    Información personalizada
+                    <Info size={16} /> Información personalizada
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
-                    {openFields.map((f) => (
+                    {openFields.map(f => (
                       <li key={f.id}>
                         <Box display="flex" justifyContent="space-between" fontSize={13} py={0.5}>
                           <Typography fontWeight={500}>{f.entity_fields.name}</Typography>
@@ -398,26 +366,24 @@ export default function HomePage() {
                   </Box>
                 </Box>
               )}
-
               {openDeadlines.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Calendar size={16} />
-                    Vencimientos
+                    <Calendar size={16} /> Vencimientos
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
-                    {openDeadlines.map((d) => (
+                    {openDeadlines.map(d => (
                       <li key={d.id}>
-                        <Box fontSize={13} py={1} sx={{ borderBottom: '1px dashed #ccc' }}>
+                        <Box fontSize={13} py={1} sx={{ borderBottom: "1px dashed #ccc" }}>
                           <Typography fontWeight={500}>{d.deadline_types.name}</Typography>
                           <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
-                            <Typography variant="body2">Última realización: {d.last_done || '—'}</Typography>
-                            <Typography variant="body2">Fecha de vencimiento: {d.next_due_date || '—'}</Typography>
+                            <Typography variant="body2">Última realización: {d.last_done || "—"}</Typography>
+                            <Typography variant="body2">Fecha de vencimiento: {d.next_due_date || "—"}</Typography>
                             {d.deadline_types.measure_by === "usage" && (
                               <>
                                 <Typography variant="body2">Frecuencia: {d.frequency} {d.frequency_unit}</Typography>
-                                <Typography variant="body2">Promedio diario: {d.usage_daily_average ?? '—'}</Typography>
-                                <Typography variant="body2">Uso actual: {typeof d.current_usage === 'number' ? d.current_usage : '—'}</Typography>
+                                <Typography variant="body2">Promedio diario: {d.usage_daily_average ?? "—"}</Typography>
+                                <Typography variant="body2">Uso actual: {typeof d.current_usage === "number" ? d.current_usage : "—"}</Typography>
                               </>
                             )}
                           </Box>
