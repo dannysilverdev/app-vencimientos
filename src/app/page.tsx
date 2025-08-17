@@ -74,7 +74,7 @@ type DeadlineStatus = {
 const DEADLINE_WARNING_DAYS = 30 // ⚠️ Amarillo si faltan ≤ 30 días (vencimientos por fecha)
 
 // ======= Helpers UI =======
-const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.75 }) => (
+const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
   <Box
     component="nav"
     aria-label="Filtros"
@@ -82,15 +82,15 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
       display: "flex",
       gap,
       overflowX: { xs: "auto", md: "visible" },
-      py: 0.5,
-      px: { xs: 1, sm: 0 },
+      py: 0.25,
+      px: { xs: 0, sm: 0 }, // 🔧 sin padding lateral
       scrollbarWidth: "thin",
       scrollSnapType: { xs: "x mandatory", md: "none" },
       "& > *": {
         flex: "0 0 auto",
         scrollSnapAlign: { xs: "start", md: "none" },
       },
-      mb: 1.25,
+      mb: 0.75, // 🔧 menos margen inferior
     }}
   >
     {children}
@@ -237,10 +237,10 @@ export default function HomePage() {
   return (
     <Box
       sx={{
-        mt: { xs: 0.5, sm: 3 },
+        mt: 0,                        // 🔧 sin margen superior
         width: "100%",
-        maxWidth: { xs: "100%", sm: 1400 },
-        px: { xs: 0, sm: 3 },
+        maxWidth: "100%",             // 🔧 usar todo el ancho
+        px: 0,                        // 🔧 sin padding lateral
         mx: "auto"
       }}
     >
@@ -248,25 +248,25 @@ export default function HomePage() {
       <Box
         sx={{
           position: "sticky",
-          top: 8,
+          top: 0,                     // 🔧 pegado arriba
           zIndex: 10,
           bgcolor: "background.default",
           borderBottom: "1px solid",
           borderColor: "divider",
-          pt: 1,
-          pb: 1,
-          mb: 2,
-          px: { xs: 0, sm: 0 }
+          pt: 0.25,                   // 🔧 menos padding
+          pb: 0.25,                   // 🔧 menos padding
+          mb: 0.5,                    // 🔧 menos margen inferior
+          px: 0                       // 🔧 sin padding lateral
         }}
       >
-        <HScroll gap={0.75}>
+        <HScroll gap={0.5}>
           <Chip label="Todos" onClick={() => setSelectedStatus("all")} color={selectedStatus === "all" ? "primary" : "default"} icon={<Circle style={{ fontSize: 12 }} />} />
           <Chip label="Al día" onClick={() => setSelectedStatus("good")} color={selectedStatus === "good" ? "success" : "default"} icon={<CheckCircle size={14} />} />
           <Chip label="Pronto" onClick={() => setSelectedStatus("warning")} color={selectedStatus === "warning" ? "warning" : "default"} icon={<AlertTriangle size={14} />} />
           <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
         </HScroll>
 
-        <HScroll gap={0.75}>
+        <HScroll gap={0.5}>
           {allTypesSorted.map(type => (
             <Chip
               key={type}
@@ -282,17 +282,18 @@ export default function HomePage() {
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
-          <Box key={typeName} sx={{ mb: 5 }}>
-            <Typography variant="h6" sx={{ mb: 2, color: "primary.main", px: { xs: 1, sm: 0 } }}>
+          <Box key={typeName} sx={{ mb: 3 /* 🔧 menos separación entre grupos */ }}>
+            <Typography variant="h6" sx={{ mb: 1, color: "primary.main", px: 1 /* 🔧 leve sangría, no padding extra */ }}>
               {typeName}
             </Typography>
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(320px, 1fr))" },
-                gap: { xs: 1.25, sm: 2 },
+                gap: { xs: 1, sm: 1.5 }, // 🔧 gaps más pequeños entre tarjetas
                 alignItems: "stretch",
-                justifyItems: "stretch"
+                justifyItems: "stretch",
+                px: 1 // 🔧 leve respiro para que no queden pegadas al borde absoluto
               }}
             >
               {group.map(entity => {
@@ -306,12 +307,12 @@ export default function HomePage() {
                 if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
                 return (
-                  <Box key={entity.id} sx={{ width: "100%", mx: { xs: 0, sm: "auto" } }}>
+                  <Box key={entity.id} sx={{ width: "100%", mx: 0 /* 🔧 sin margen horizontal extra */ }}>
                     <EntityCard
                       entity={entity}
                       deadlines={deadlines}
                       fieldValues={fieldValuesByEntity[entity.id] || []}
-                      onClick={() => setOpenEntityId(entity.id)} // ✅ Prop obligatoria
+                      onClick={() => setOpenEntityId(entity.id)}
                     />
                   </Box>
                 )
@@ -324,7 +325,7 @@ export default function HomePage() {
       <Dialog
         open={!!openEntityId}
         onClose={() => setOpenEntityId(null)}
-        maxWidth={isMobile ? "xs" : "sm"} // 👈 más compacto en mobile
+        maxWidth={isMobile ? "xs" : "sm"}
         fullWidth
       >
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
