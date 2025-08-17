@@ -41,10 +41,20 @@ export default function EditEntityPage() {
       if (!entityId) return
       try {
         const [resEntity, resTypes, resFieldValues] = await Promise.all([
-          fetch(`/api/entities/${entityId}`),
+          // Evitar caché para ver el valor actualizado de tracks_usage al reabrir
+          fetch(`/api/entities/${entityId}`, { cache: 'no-store' }),
           fetch(`/api/entity-types`),
-          fetch(`/api/entity-field-values/bulk?entity_id=${entityId}`)
+          fetch(`/api/entity-field-values/bulk?entity_id=${entityId}`, { cache: 'no-store' })
         ])
+
+        if (!resEntity.ok) {
+          const errData = await resEntity.json().catch(() => null)
+          throw new Error(errData?.error || 'No se pudo cargar la entidad')
+        }
+        if (!resTypes.ok) {
+          const errData = await resTypes.json().catch(() => null)
+          throw new Error(errData?.error || 'No se pudieron cargar los tipos de entidad')
+        }
 
         const [entityData, typeData] = await Promise.all([
           resEntity.json(),
@@ -66,7 +76,8 @@ export default function EditEntityPage() {
         setEntity(entityData)
         setEditedName(entityData.name)
         setEditedTypeId(entityData.type_id)
-        setTracksUsage(entityData.tracks_usage ?? false)
+        // Normalizar booleano por seguridad
+        setTracksUsage(Boolean(entityData?.tracks_usage))
         setEntityTypes(typeData)
         setFieldValues(fieldValuesData)
       } catch (err) {
@@ -91,6 +102,7 @@ export default function EditEntityPage() {
       const entityPayload = {
         name: editedName?.trim(),
         type_id: editedTypeId,
+        // Enviar booleano definitivo
         tracks_usage: Boolean(tracksUsage)
       }
 
@@ -161,17 +173,17 @@ export default function EditEntityPage() {
         <InputLabel>Tipo de entidad</InputLabel>
         <Select
           value={editedTypeId}
-          onChange={(e) => setEditedTypeId(e.target.value)}
+          onChange={(e) => setEditedTypeId(e.target.value as string)}
           label="Tipo de entidad"
         >
-          {entityTypes.map(type => (
+          {entityTypes.map((type) => (
             <MenuItem key={type.id} value={type.id}>{type.name}</MenuItem>
           ))}
         </Select>
       </FormControl>
 
       <FormControlLabel
-        control={<Switch checked={tracksUsage} onChange={(e) => setTracksUsage(e.target.checked)} />}
+        control={<Switch checked={tracksUsage} onChange={(e) => setTracksUsage(Boolean(e.target.checked))} />}
         label="¿Registrar uso acumulado?"
         sx={{ mb: 2 }}
       />

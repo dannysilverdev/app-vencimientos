@@ -59,13 +59,24 @@ type DeadlineStatus = {
   daysRemaining: number
   label: string
   unit?: string
-  progress?: number
+  progress: number                 // ✅ siempre presente (0..1)
   currentUsage?: number
   thresholdUsage?: number
+  elapsedDays?: number             // ⏱️ para fecha
+  totalDays?: number               // ⏱️ para fecha
 }
 
 const WARNING_PROGRESS = 0.85
 const DEADLINE_WARNING_DAYS = 30 // ⚠️ Amarillo si faltan ≤ 30 días (fecha)
+const MS_PER_DAY = 1000 * 60 * 60 * 24
+
+function clamp01(n: number) {
+  return Math.max(0, Math.min(1, n))
+}
+
+function daysBetween(a: Date, b: Date) {
+  return Math.ceil((a.getTime() - b.getTime()) / MS_PER_DAY)
+}
 
 function formatDateISO(d: Date) {
   return d.toISOString().split("T")[0]
@@ -90,7 +101,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
         daysRemaining: Infinity,
         label: d.deadline_types.name,
         color: "#4caf50",
-        progress: 0,
+        progress: 0, // ✅ barra vacía si faltan datos
         currentUsage: hasCurrent ? current : undefined,
         thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
         unit,
@@ -98,7 +109,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     }
 
     const effectiveUsage = Math.max(0, current - baseline)
-    const progress = effectiveUsage / d.frequency
+    const progress = clamp01(effectiveUsage / d.frequency)
 
     let text = "Sin fecha"
     let daysRemaining = Infinity
@@ -146,7 +157,8 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
 
   // --- Vencimientos por FECHA ---
   const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-  const diffDays = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity
+  const lastDone = d.last_done ? new Date(d.last_done) : null
+  const diffDays = dueDate ? daysBetween(dueDate, today) : Infinity
 
   let variant: DeadlineStatus["variant"] = "default"
   let color = "#4caf50"
@@ -162,6 +174,31 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     icon = <AlertTriangle size={16} />
   }
 
+  // 📊 Progreso para fecha
+  // Caso preferente: si tenemos last_done y next_due_date, usamos esa ventana completa.
+  let progress = 0
+  let elapsedDays: number | undefined = undefined
+  let totalDays: number | undefined = undefined
+
+  if (lastDone && dueDate) {
+    const total = Math.max(1, daysBetween(dueDate, lastDone))
+    const elapsed = Math.max(0, Math.min(total, daysBetween(today, lastDone)))
+    totalDays = total
+    elapsedDays = Math.max(0, Math.min(total, elapsed))
+    progress = clamp01(elapsed / total)
+  } else if (dueDate) {
+    // Fallback: barra dentro de la ventana de aviso (30 días antes del vencimiento)
+    // - Si faltan >30 días → 0%
+    // - A medida que se acerca (<=30) sube hasta 100%
+    if (diffDays <= 0) {
+      progress = 1
+    } else {
+      progress = clamp01((DEADLINE_WARNING_DAYS - diffDays) / DEADLINE_WARNING_DAYS)
+    }
+  } else {
+    progress = 0
+  }
+
   return {
     text: dueDate ? formatDateISO(dueDate) : "Sin fecha",
     variant,
@@ -170,6 +207,9 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     label: d.deadline_types.name,
     unit: d.deadline_types.unit || d.frequency_unit || undefined,
     color,
+    progress,          // ✅ ahora siempre presente
+    elapsedDays,
+    totalDays,
   }
 }
 
@@ -210,7 +250,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   }
 
   const renderProgressBar = (progress?: number) => {
-    const pct = Math.max(0, Math.min(1, progress ?? 0)) * 100
+    const pct = clamp01(progress ?? 0) * 100
     const fillColor = getProgressColor(progress)
     return (
       <Box sx={{ mt: 1.0, display: "flex", alignItems: "center", gap: 1 }}>
@@ -323,16 +363,20 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   ? `${d.daysRemaining} días para vencer el ${d.text}`
                   : `Sin fecha`}
             </Typography>
-            {d.progress !== undefined && (
-              <>
-                {renderProgressBar(d.progress)}
-                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.25 }}>
-                  {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
-                    ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Vence a los ${d.thresholdUsage} ${d.unit ?? ""}`
-                    : "Sin datos suficientes de uso"}
-                </Typography>
-              </>
-            )}
+
+            {/* ✅ Barra de progreso SIEMPRE visible */}
+            {renderProgressBar(d.progress)}
+
+            {/* Pie de apoyo */}
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.25 }}>
+              {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
+                ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Vence a los ${d.thresholdUsage} ${d.unit ?? ""}`
+                : (Number.isFinite(d.elapsedDays) && Number.isFinite(d.totalDays))
+                  ? `Transcurrido: ${d.elapsedDays}/${d.totalDays} días`
+                  : isFinite(d.daysRemaining)
+                    ? `Quedan ${Math.max(0, d.daysRemaining)} días`
+                    : "Progreso no disponible"}
+            </Typography>
           </Box>
         ))}
 

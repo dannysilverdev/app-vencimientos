@@ -245,49 +245,64 @@ export default function HomePage() {
       }}
     >
 
-      {/* Fila 1: Filtros de estado (orden fijo) */}
-      <HScroll gap={0.75}>
-        <Chip
-          label="Todos"
-          onClick={() => setSelectedStatus("all")}
-          color={selectedStatus === "all" ? "primary" : "default"}
-          icon={<Circle style={{ fontSize: 12 }} />}
-          sx={{ mr: 0.25 }}
-        />
-        <Chip
-          label="Al día"
-          onClick={() => setSelectedStatus("good")}
-          color={selectedStatus === "good" ? "success" : "default"}
-          icon={<CheckCircle size={14} />}
-          sx={{ mr: 0.25 }}
-        />
-        <Chip
-          label="Pronto"
-          onClick={() => setSelectedStatus("warning")}
-          color={selectedStatus === "warning" ? "warning" : "default"}
-          icon={<AlertTriangle size={14} />}
-          sx={{ mr: 0.25 }}
-        />
-        <Chip
-          label="Vencidas"
-          onClick={() => setSelectedStatus("overdue")}
-          color={selectedStatus === "overdue" ? "error" : "default"}
-          icon={<XCircle size={14} />}
-        />
-      </HScroll>
-
-      {/* Fila 2: Filtros por tipo (orden alfabético) */}
-      <HScroll gap={0.75}>
-        {allTypesSorted.map(type => (
+      {/* ===== Barra de filtros sticky ===== */}
+      <Box
+        sx={{
+          position: "sticky",
+          top: 8,                // ajusta según el alto de tu header
+          zIndex: 10,
+          bgcolor: "background.default",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          pt: 1,
+          pb: 1,
+          mb: 2,
+        }}
+      >
+        {/* Fila 1: Estado (orden fijo) */}
+        <HScroll gap={0.75}>
           <Chip
-            key={type}
-            label={type}
-            onClick={() => setSelectedType(type === selectedType ? null : type)}
-            color={selectedType === type ? "primary" : "default"}
-            variant="outlined"
+            label="Todos"
+            onClick={() => setSelectedStatus("all")}
+            color={selectedStatus === "all" ? "primary" : "default"}
+            icon={<Circle style={{ fontSize: 12 }} />}
+            sx={{ mr: 0.25 }}
           />
-        ))}
-      </HScroll>
+          <Chip
+            label="Al día"
+            onClick={() => setSelectedStatus("good")}
+            color={selectedStatus === "good" ? "success" : "default"}
+            icon={<CheckCircle size={14} />}
+            sx={{ mr: 0.25 }}
+          />
+          <Chip
+            label="Pronto"
+            onClick={() => setSelectedStatus("warning")}
+            color={selectedStatus === "warning" ? "warning" : "default"}
+            icon={<AlertTriangle size={14} />}
+            sx={{ mr: 0.25 }}
+          />
+          <Chip
+            label="Vencidas"
+            onClick={() => setSelectedStatus("overdue")}
+            color={selectedStatus === "overdue" ? "error" : "default"}
+            icon={<XCircle size={14} />}
+          />
+        </HScroll>
+
+        {/* Fila 2: Tipos (orden alfabético) */}
+        <HScroll gap={0.75}>
+          {allTypesSorted.map(type => (
+            <Chip
+              key={type}
+              label={type}
+              onClick={() => setSelectedType(type === selectedType ? null : type)}
+              color={selectedType === type ? "primary" : "default"}
+              variant="outlined"
+            />
+          ))}
+        </HScroll>
+      </Box>
 
       {/* Listado por grupo */}
       {Object.entries(grouped)

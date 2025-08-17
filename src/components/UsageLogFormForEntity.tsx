@@ -5,22 +5,26 @@ import {
   TextField,
   Button,
   Alert,
+  CircularProgress,
 } from '@mui/material'
 import { LocalizationProvider } from '@mui/x-date-pickers'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function UsageLogFormForEntity({ entityId }: { entityId: string }) {
-  const [date, setDate] = useState(dayjs())
+  const [date, setDate] = useState<Dayjs>(dayjs())
   const [value, setValue] = useState<number>(0)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [lastLog, setLastLog] = useState<{ date: string; value: number } | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [loadingLast, setLoadingLast] = useState(true)
 
-  useEffect(() => {
-    const fetchLastLog = async () => {
-      const { data, error } = await supabase
+  const fetchLastLog = async () => {
+    try {
+      setLoadingLast(true)
+      const { data } = await supabase
         .from('usage_logs')
         .select('date, value')
         .eq('entity_id', entityId)
@@ -28,33 +32,81 @@ export default function UsageLogFormForEntity({ entityId }: { entityId: string }
         .limit(1)
 
       if (data && data.length > 0) {
-        setLastLog(data[0])
+        setLastLog({ date: data[0].date, value: Number(data[0].value) })
+      } else {
+        setLastLog(null)
       }
+    } finally {
+      setLoadingLast(false)
     }
+  }
 
-    fetchLastLog()
+  useEffect(() => {
+    if (entityId) fetchLastLog()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId])
 
   const handleSubmit = async () => {
-    setMessage(null)
+    try {
+      setMessage(null)
 
-    const { error, data } = await supabase
-      .from('usage_logs')
-      .insert([
-        {
-          entity_id: entityId,
-          date: date.toISOString().split('T')[0],
-          value
-        }
-      ])
+      // Validación básica del input
+      const numeric = Number(value)
+      if (Number.isNaN(numeric)) {
+        setMessage({ type: 'error', text: '❌ Ingresa un número válido.' })
+        return
+      }
+      if (numeric < 0) {
+        setMessage({ type: 'error', text: '❌ El valor no puede ser negativo.' })
+        return
+      }
 
-    if (error) {
-      console.error('Error al insertar en usage_logs:', error.message, error.details, error)
-      setMessage({ type: 'error', text: '❌ Error al guardar: ' + (error.message || 'Desconocido') })
-    } else {
+      // Validación contra el último valor cargado en memoria
+      if (lastLog && numeric < Number(lastLog.value)) {
+        setMessage({ type: 'error', text: `❌ El valor (${numeric}) no puede ser menor que el último registrado (${lastLog.value}).` })
+        return
+      }
+
+      setSubmitting(true)
+
+      // Revalidar contra el último valor más reciente justo antes de insertar (reduce riesgos de simultaneidad)
+      const { data: fresh } = await supabase
+        .from('usage_logs')
+        .select('date, value')
+        .eq('entity_id', entityId)
+        .order('date', { ascending: false })
+        .limit(1)
+
+      const freshLast = fresh && fresh.length > 0 ? Number(fresh[0].value) : null
+      if (freshLast !== null && numeric < freshLast) {
+        setMessage({ type: 'error', text: `❌ El valor (${numeric}) no puede ser menor que el último registrado (${freshLast}).` })
+        return
+      }
+
+      const isoDate = date.toISOString().split('T')[0]
+
+      const { error } = await supabase
+        .from('usage_logs')
+        .insert([
+          {
+            entity_id: entityId,
+            date: isoDate,
+            value: numeric,
+          }
+        ])
+
+      if (error) {
+        console.error('Error al insertar en usage_logs:', error.message, error.details, error)
+        setMessage({ type: 'error', text: '❌ Error al guardar: ' + (error.message || 'Desconocido') })
+        return
+      }
+
+      // Éxito
       setMessage({ type: 'success', text: '✅ Registro guardado.' })
-      setValue(0)
-      setLastLog({ date: date.toISOString().split('T')[0], value })
+      setLastLog({ date: isoDate, value: numeric })
+      setValue(0) // limpia a 0 como tu versión original
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -73,23 +125,30 @@ export default function UsageLogFormForEntity({ entityId }: { entityId: string }
           label="Valor acumulado (ej: km, horas, etc)"
           type="number"
           value={isNaN(value as number) ? '' : value}
-
           onChange={(e) => setValue(parseFloat(e.target.value))}
+          inputProps={{ min: 0, step: 'any' }}
         />
 
-        <Button variant="contained" onClick={handleSubmit}>
-          Registrar
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={submitting || loadingLast}
+          startIcon={submitting ? <CircularProgress size={18} /> : undefined}
+        >
+          {submitting ? 'Guardando…' : 'Registrar'}
         </Button>
 
         {message && (
           <Alert severity={message.type}>{message.text}</Alert>
         )}
 
-        {lastLog && (
-          <Typography variant="body2" color="text.secondary">
-            Último registrado: {lastLog.value} el {lastLog.date}
-          </Typography>
-        )}
+        <Typography variant="body2" color="text.secondary">
+          {loadingLast
+            ? 'Cargando último registro…'
+            : lastLog
+              ? `Último registrado: ${lastLog.value} el ${lastLog.date}`
+              : 'Aún no hay registros previos'}
+        </Typography>
       </Stack>
     </LocalizationProvider>
   )
