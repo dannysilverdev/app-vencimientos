@@ -409,6 +409,23 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         >
           {entity.name}
         </Typography>
+
+        {chips.length > 0 && (
+          <Typography
+            variant="body2"
+            sx={{
+              color: theme.palette.text.secondary,
+              fontWeight: 500,
+              lineHeight: 1.3,
+              fontSize: isMobile ? "0.8rem" : "0.85rem",
+              pr: 5,
+            }}
+            title={chips.map((c) => c.value).join(" • ")}
+          >
+            {visibleChips.map((c) => c.value).join(" • ")}
+            {hiddenChipsCount > 0 && ` • +${hiddenChipsCount} más`}
+          </Typography>
+        )}
       </Box>
 
       {/* === Deadlines Section === */}
@@ -467,7 +484,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
-              sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1.5 }}
+              sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1.5 }}
             >
               <Box
                 sx={{
@@ -547,56 +564,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           </Box>
         ))}
       </Box>
-
-      {/* === Custom Fields Footer (solo valores, compacto) === */}
-      {chips.length > 0 && (
-        <Box
-          sx={{
-            mt: isMobile ? 1 : 1.5,
-            pt: isMobile ? 0.75 : 1,
-          }}
-        >
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              color: theme.palette.text.secondary,
-              fontWeight: 600,
-              lineHeight: 1.4,
-            }}
-            title={chips.map((c) => c.value).join(" • ")}
-          >
-            {(fieldsExpanded ? chips : visibleChips).map((c) => c.value).join(" • ")}
-            {hiddenChipsCount > 0 && !fieldsExpanded && ` • +${hiddenChipsCount}`}
-          </Typography>
-
-          {hiddenChipsCount > 0 && (
-            <Box
-              onClick={(e) => {
-                e.stopPropagation()
-                setFieldsExpanded((v) => !v)
-              }}
-              sx={{
-                mt: 0.5,
-                alignSelf: "flex-start",
-                px: 1,
-                py: 0.35,
-                borderRadius: 999,
-                bgcolor: alpha(theme.palette.mode === "dark" ? "#fff" : "#000", 0.06),
-                border: `1px solid ${alpha(theme.palette.mode === "dark" ? "#fff" : "#000", 0.08)}`,
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                userSelect: "none",
-                cursor: "pointer",
-                transition: "background-color .2s ease, transform .2s ease",
-                "&:hover": { transform: "translateY(-1px)" },
-              }}
-            >
-              {fieldsExpanded ? "Ver menos" : "Ver todos"}
-            </Box>
-          )}
-        </Box>
-      )}
     </Box>
   )
 }
