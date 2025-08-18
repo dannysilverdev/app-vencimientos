@@ -1,19 +1,11 @@
 // src/components/EntityCard.tsx
 "use client"
 
-import React, { useMemo, useState } from "react"
-import {
-  Box,
-  Typography,
-  useTheme,
-  useMediaQuery,
-} from "@mui/material"
+import type React from "react"
+import { useMemo, useState } from "react"
+import { Box, Typography, useTheme, useMediaQuery } from "@mui/material"
 import { alpha } from "@mui/material/styles"
-import {
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-} from "lucide-react"
+import { AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react"
 
 type Entity = {
   id: string
@@ -59,49 +51,57 @@ type DeadlineStatus = {
   daysRemaining: number
   label: string
   unit?: string
-  progress: number                 // ✅ siempre presente (0..1)
+  progress: number
   currentUsage?: number
   thresholdUsage?: number
-  elapsedDays?: number             // ⏱️ para fecha
-  totalDays?: number               // ⏱️ para fecha
+  elapsedDays?: number
+  totalDays?: number
 }
 
 const WARNING_PROGRESS = 0.85
-const DEADLINE_WARNING_DAYS = 30 // ⚠️ Amarillo si faltan ≤ 30 días (fecha)
+const DEADLINE_WARNING_DAYS = 30
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 function clamp01(n: number) {
   return Math.max(0, Math.min(1, n))
 }
-
 function daysBetween(a: Date, b: Date) {
   return Math.ceil((a.getTime() - b.getTime()) / MS_PER_DAY)
 }
-
 function formatDateISO(d: Date) {
   return d.toISOString().split("T")[0]
+}
+
+function colorForVariant(variant: DeadlineStatus["variant"], theme: any) {
+  switch (variant) {
+    case "destructive":
+      return theme.palette.error.main
+    case "secondary":
+      return theme.palette.warning.main
+    default:
+      return theme.palette.success.main
+  }
 }
 
 function getDeadlineStatus(d: Deadline): DeadlineStatus {
   const today = new Date()
 
-  // --- Vencimientos por USO ---
   if (d.deadline_types.measure_by === "usage") {
     const unit = d.deadline_types.unit || d.frequency_unit || ""
     const hasCurrent = typeof d.current_usage === "number"
     const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
     const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
-    const current = hasCurrent ? d.current_usage! : NaN
+    const current = hasCurrent ? d.current_usage! : Number.NaN
 
     if (!hasCurrent || !hasFreq) {
       return {
         text: "Sin fecha",
         variant: "default",
         icon: <CheckCircle size={16} />,
-        daysRemaining: Infinity,
+        daysRemaining: Number.POSITIVE_INFINITY,
         label: d.deadline_types.name,
         color: "#4caf50",
-        progress: 0, // ✅ barra vacía si faltan datos
+        progress: 0,
         currentUsage: hasCurrent ? current : undefined,
         thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
         unit,
@@ -112,7 +112,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const progress = clamp01(effectiveUsage / d.frequency)
 
     let text = "Sin fecha"
-    let daysRemaining = Infinity
+    let daysRemaining = Number.POSITIVE_INFINITY
     const avg = typeof d.usage_daily_average === "number" ? d.usage_daily_average : 0
 
     if (avg > 0) {
@@ -155,27 +155,24 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     }
   }
 
-  // --- Vencimientos por FECHA ---
   const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
   const lastDone = d.last_done ? new Date(d.last_done) : null
-  const diffDays = dueDate ? daysBetween(dueDate, today) : Infinity
+  const diffDays = dueDate ? daysBetween(dueDate, today) : Number.POSITIVE_INFINITY
 
   let variant: DeadlineStatus["variant"] = "default"
   let color = "#4caf50"
   let icon: React.ReactNode = <CheckCircle size={16} />
 
   if (dueDate && diffDays < 0) {
-    variant = "destructive"     // 🔴 Vencido
+    variant = "destructive"
     color = "#f44336"
     icon = <XCircle size={16} />
   } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-    variant = "secondary"       // 🟡 Pronto (≤ 30 días)
+    variant = "secondary"
     color = "#ff9800"
     icon = <AlertTriangle size={16} />
   }
 
-  // 📊 Progreso para fecha
-  // Caso preferente: si tenemos last_done y next_due_date, usamos esa ventana completa.
   let progress = 0
   let elapsedDays: number | undefined = undefined
   let totalDays: number | undefined = undefined
@@ -187,14 +184,8 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     elapsedDays = Math.max(0, Math.min(total, elapsed))
     progress = clamp01(elapsed / total)
   } else if (dueDate) {
-    // Fallback: barra dentro de la ventana de aviso (30 días antes del vencimiento)
-    // - Si faltan >30 días → 0%
-    // - A medida que se acerca (<=30) sube hasta 100%
-    if (diffDays <= 0) {
-      progress = 1
-    } else {
-      progress = clamp01((DEADLINE_WARNING_DAYS - diffDays) / DEADLINE_WARNING_DAYS)
-    }
+    if (diffDays <= 0) progress = 1
+    else progress = clamp01((DEADLINE_WARNING_DAYS - diffDays) / DEADLINE_WARNING_DAYS)
   } else {
     progress = 0
   }
@@ -207,7 +198,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     label: d.deadline_types.name,
     unit: d.deadline_types.unit || d.frequency_unit || undefined,
     color,
-    progress,          // ✅ ahora siempre presente
+    progress,
     elapsedDays,
     totalDays,
   }
@@ -222,46 +213,63 @@ type Props = {
 
 export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
-  const matches = useMediaQuery(theme.breakpoints.down("sm"))
-  const [expanded, setExpanded] = useState(false)
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"))
+  const [deadlinesExpanded, setDeadlinesExpanded] = useState(false)
+  const [fieldsExpanded, setFieldsExpanded] = useState(false)
 
   const chips = useMemo(
-    () => fieldValues.filter(f => f.entity_fields?.show_in_card && f.value?.trim()),
-    [fieldValues]
+    () => fieldValues.filter((f) => f.entity_fields?.show_in_card && f.value?.trim()),
+    [fieldValues],
   )
-  const visibleChips = chips.slice(0, 6)
+  const visibleChips = chips.slice(0, isMobile ? 4 : 6)
   const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
   const sorted = useMemo(
-    () =>
-      deadlines
-        .map(getDeadlineStatus)
-        .sort((a, b) => a.daysRemaining - b.daysRemaining),
-    [deadlines]
+    () => deadlines.map(getDeadlineStatus).sort((a, b) => a.daysRemaining - b.daysRemaining),
+    [deadlines],
   )
 
-  const visibleCount = expanded ? sorted.length : Math.min(sorted.length, 2)
+  const visibleCount = sorted.length
 
-  const getProgressColor = (p: number | undefined) => {
-    if (p === undefined) return theme.palette.success.main
-    if (p >= 1) return theme.palette.error.main
-    if (p >= WARNING_PROGRESS) return theme.palette.warning.main
-    return theme.palette.success.main
-  }
-
-  const renderProgressBar = (progress?: number) => {
+  const renderProgressBar = (progress: number | undefined, variant: DeadlineStatus["variant"], labelA11y: string) => {
     const pct = clamp01(progress ?? 0) * 100
-    const fillColor = getProgressColor(progress)
+    const fill = colorForVariant(variant, theme)
+    const track = alpha(fill, 0.15)
+    const isOverdue = variant === "destructive"
+
     return (
-      <Box sx={{ mt: 1.0, display: "flex", alignItems: "center", gap: 1 }}>
+      <Box
+        aria-label={`${labelA11y}: ${Math.round(pct)}%`}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        sx={{ mt: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}
+      >
         <Box
           sx={{
             flex: 1,
             position: "relative",
-            height: 8,
+            height: isMobile ? 6 : 8,
             borderRadius: 999,
-            bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.200",
+            bgcolor: track,
             overflow: "hidden",
+            boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
+            ...(isOverdue && {
+              backgroundImage: `repeating-linear-gradient(
+                45deg,
+                ${alpha(fill, 0.2)} 0px,
+                ${alpha(fill, 0.2)} 8px,
+                ${alpha(fill, 0.1)} 8px,
+                ${alpha(fill, 0.1)} 16px
+              )`,
+              animation: "stripeMove 2s linear infinite",
+              "@keyframes stripeMove": {
+                "0%": { backgroundPosition: "0 0" },
+                "100%": { backgroundPosition: "32px 0" },
+              },
+            }),
           }}
         >
           <Box
@@ -271,19 +279,21 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               top: 0,
               bottom: 0,
               width: `${pct}%`,
-              bgcolor: fillColor,
+              bgcolor: fill,
               borderRadius: 999,
-              transition: "width .35s ease, background-color .35s ease",
+              transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+              boxShadow: pct > 5 ? `0 0 8px ${alpha(fill, 0.4)}` : "none",
             }}
           />
         </Box>
         <Typography
           variant="caption"
           sx={{
-            fontWeight: 700,
-            color: theme.palette.text.secondary,
-            minWidth: 34,
-            textAlign: "right"
+            fontWeight: 600,
+            color: fill,
+            minWidth: isMobile ? 28 : 34,
+            textAlign: "right",
+            fontSize: isMobile ? "0.7rem" : "0.75rem",
           }}
         >
           {Math.round(pct)}%
@@ -292,153 +302,301 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
     )
   }
 
-  const surface = theme.palette.mode === "dark" ? alpha("#fff", 0.04) : alpha("#000", 0.02)
-  const border = theme.palette.mode === "dark" ? alpha("#fff", 0.08) : alpha("#000", 0.08)
-  const hoverBg = theme.palette.mode === "dark" ? alpha("#fff", 0.06) : alpha("#000", 0.04)
+  const surface =
+    theme.palette.mode === "dark"
+      ? `linear-gradient(145deg, ${alpha("#fff", 0.06)}, ${alpha("#fff", 0.02)})`
+      : `linear-gradient(145deg, ${alpha("#fff", 0.9)}, ${alpha("#fff", 0.7)})`
+
+  const border = theme.palette.mode === "dark" ? alpha("#fff", 0.12) : alpha("#000", 0.06)
+
+  const hoverBg =
+    theme.palette.mode === "dark"
+      ? `linear-gradient(145deg, ${alpha("#fff", 0.08)}, ${alpha("#fff", 0.04)})`
+      : `linear-gradient(145deg, ${alpha("#fff", 0.95)}, ${alpha("#fff", 0.8)})`
 
   return (
     <Box
       role="button"
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClick() }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onClick()
+      }}
       sx={{
-        bgcolor: surface,
+        background: surface,
         border: `1px solid ${border}`,
-        borderRadius: 2.5,
-        p: 2,
-        boxShadow: "0 6px 20px rgba(0,0,0,0.06)",
-        minWidth: 260,
-        maxWidth: matches ? "100%" : 420,
+        borderRadius: isMobile ? 2 : 3,
+        p: isMobile ? 2 : 2.5,
+        boxShadow:
+          theme.palette.mode === "dark"
+            ? "0 4px 20px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2)"
+            : "0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
+        minWidth: isMobile ? "100%" : 280,
+        maxWidth: isMobile ? "100%" : isTablet ? 360 : 420,
         cursor: "pointer",
-        transition: "transform .22s ease, box-shadow .22s ease, background-color .22s ease, border-color .22s ease",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         "&:hover": {
-          transform: "translateY(-3px)",
-          boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
-          bgcolor: hoverBg
+          transform: isMobile ? "translateY(-1px)" : "translateY(-4px)",
+          boxShadow:
+            theme.palette.mode === "dark"
+              ? "0 8px 32px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3)"
+              : "0 8px 32px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+          background: hoverBg,
+          borderColor: theme.palette.mode === "dark" ? alpha("#fff", 0.16) : alpha("#000", 0.08),
         },
         "&:focus-visible": {
-          outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
-          outlineOffset: 2
+          outline: `2px solid ${theme.palette.primary.main}`,
+          outlineOffset: 2,
         },
-        display: "grid",
-        gridTemplateRows: "auto 1fr auto",
-        rowGap: 1.25,
+        "&:active": {
+          transform: isMobile ? "translateY(0px)" : "translateY(-2px)",
+        },
+        display: "flex",
+        flexDirection: "column",
+        gap: isMobile ? 1.5 : 2,
+        position: "relative",
       }}
     >
-      {/* Nombre de la entidad */}
-      <Typography
-        variant="h6"
-        fontWeight={800}
-        sx={{
-          m: 0,
-          lineHeight: 1.15,
-          letterSpacing: 0.2,
-          wordBreak: "break-word",
-          whiteSpace: "normal",
-        }}
-      >
-        {entity.name}
-      </Typography>
+      {sorted.length > 0 && (
+        <Box
+          onClick={(e) => {
+            e.stopPropagation()
+            setDeadlinesExpanded((v) => !v)
+          }}
+          sx={{
+            position: "absolute",
+            top: isMobile ? 12 : 16,
+            right: isMobile ? 12 : 16,
+            zIndex: 1,
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "50%",
+            bgcolor: alpha(theme.palette.primary.main, 0.1),
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            color: theme.palette.primary.main,
+            cursor: "pointer",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            "&:hover": {
+              bgcolor: alpha(theme.palette.primary.main, 0.15),
+              transform: "translateY(-1px) scale(1.05)",
+              boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+            },
+            "&:active": {
+              transform: "translateY(0px) scale(1)",
+            },
+          }}
+        >
+          {deadlinesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </Box>
+      )}
 
-      {/* Lista de vencimientos */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mt: 0.25 }}>
+      {/* === Header Section === */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Typography
+          variant={isMobile ? "h6" : "h5"}
+          sx={{
+            fontWeight: 700,
+            lineHeight: 1.2,
+            letterSpacing: -0.01,
+            wordBreak: "break-word",
+            color: theme.palette.text.primary,
+            fontSize: isMobile ? "1.1rem" : "1.25rem",
+            pr: 5,
+          }}
+        >
+          {entity.name}
+        </Typography>
+      </Box>
+
+      {/* === Deadlines Section === */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: isMobile ? 0.5 : 0.75, flex: 1 }}>
         {sorted.slice(0, visibleCount).map((d, i) => (
           <Box
             key={i}
             sx={{
               display: "flex",
               flexDirection: "column",
-              gap: 0.35,
-              p: 0,
+              gap: 0.25,
+              p: isMobile ? 0.5 : 0.75,
+              borderRadius: 2,
+              bgcolor: alpha(colorForVariant(d.variant, theme), 0.05),
+              border: `1px solid ${alpha(colorForVariant(d.variant, theme), 0.15)}`,
+              transition: "all 0.2s ease",
             }}
           >
-            <Typography variant="body2" sx={{ fontWeight: 700, color: d.color }}>
-              {d.unit ? `${d.label} (${d.unit})` : d.label}
-            </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: -0.25 }}>
-              {d.daysRemaining < 0
-                ? `Venció el ${d.text}`
-                : isFinite(d.daysRemaining)
-                  ? `${d.daysRemaining} días para vencer el ${d.text}`
-                  : `Sin fecha`}
-            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ color: colorForVariant(d.variant, theme), display: "flex", alignItems: "center" }}>
+                {d.icon}
+              </Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 700,
+                  color: colorForVariant(d.variant, theme),
+                  fontSize: isMobile ? "0.85rem" : "0.9rem",
+                  flex: 1,
+                }}
+              >
+                {d.unit ? `${d.label} (${d.unit})` : d.label}
+              </Typography>
+            </Box>
 
-            {/* ✅ Barra de progreso SIEMPRE visible */}
-            {renderProgressBar(d.progress)}
-
-            {/* Pie de apoyo */}
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mt: 0.25 }}>
-              {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
-                ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Vence a los ${d.thresholdUsage} ${d.unit ?? ""}`
-                : (Number.isFinite(d.elapsedDays) && Number.isFinite(d.totalDays))
-                  ? `Transcurrido: ${d.elapsedDays}/${d.totalDays} días`
+            {deadlinesExpanded && (
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  fontSize: isMobile ? "0.8rem" : "0.85rem",
+                  lineHeight: 1.4,
+                }}
+              >
+                {d.daysRemaining < 0
+                  ? `Venció el ${d.text}`
                   : isFinite(d.daysRemaining)
-                    ? `Quedan ${Math.max(0, d.daysRemaining)} días`
-                    : "Progreso no disponible"}
-            </Typography>
+                    ? `${d.daysRemaining} días para vencer el ${d.text}`
+                    : `Sin fecha definida`}
+              </Typography>
+            )}
+
+            <Box
+              aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
+              sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1.5 }}
+            >
+              <Box
+                sx={{
+                  flex: 1,
+                  position: "relative",
+                  height: isMobile ? 6 : 8,
+                  borderRadius: 999,
+                  bgcolor: alpha(colorForVariant(d.variant, theme), 0.15),
+                  overflow: "hidden",
+                  boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
+                  ...(d.variant === "destructive" && {
+                    backgroundImage: `repeating-linear-gradient(
+                      45deg,
+                      ${alpha(colorForVariant(d.variant, theme), 0.2)} 0px,
+                      ${alpha(colorForVariant(d.variant, theme), 0.2)} 8px,
+                      ${alpha(colorForVariant(d.variant, theme), 0.1)} 8px,
+                      ${alpha(colorForVariant(d.variant, theme), 0.1)} 16px
+                    )`,
+                    animation: "stripeMove 2s linear infinite",
+                    "@keyframes stripeMove": {
+                      "0%": { backgroundPosition: "0 0" },
+                      "100%": { backgroundPosition: "32px 0" },
+                    },
+                  }),
+                }}
+              >
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${clamp01(d.progress ?? 0) * 100}%`,
+                    bgcolor: colorForVariant(d.variant, theme),
+                    borderRadius: 999,
+                    transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow:
+                      clamp01(d.progress ?? 0) * 100 > 5
+                        ? `0 0 8px ${alpha(colorForVariant(d.variant, theme), 0.4)}`
+                        : "none",
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 600,
+                  color: colorForVariant(d.variant, theme),
+                  minWidth: isMobile ? 28 : 34,
+                  textAlign: "right",
+                  fontSize: isMobile ? "0.7rem" : "0.75rem",
+                }}
+              >
+                {Math.round(clamp01(d.progress ?? 0) * 100)}%
+              </Typography>
+            </Box>
+
+            {deadlinesExpanded && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  fontSize: isMobile ? "0.7rem" : "0.75rem",
+                  fontWeight: 500,
+                  lineHeight: 1.3,
+                }}
+              >
+                {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
+                  ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Límite: ${d.thresholdUsage} ${d.unit ?? ""}`
+                  : Number.isFinite(d.elapsedDays) && Number.isFinite(d.totalDays)
+                    ? `Transcurrido: ${d.elapsedDays}/${d.totalDays} días`
+                    : isFinite(d.daysRemaining)
+                      ? `Quedan ${Math.max(0, d.daysRemaining)} días`
+                      : "Progreso no disponible"}
+              </Typography>
+            )}
           </Box>
         ))}
-
-        {sorted.length > 2 && (
-          <Box
-            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
-            sx={{
-              mt: 0.25,
-              alignSelf: "flex-start",
-              px: 1,
-              py: 0.35,
-              borderRadius: 999,
-              bgcolor: theme.palette.mode === "dark" ? alpha("#fff", 0.06) : alpha("#000", 0.05),
-              border: `1px solid ${theme.palette.mode === "dark" ? alpha("#fff", 0.08) : alpha("#000", 0.08)}`,
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              userSelect: "none",
-              transition: "background-color .2s ease, transform .2s ease",
-              "&:hover": { transform: "translateY(-1px)" }
-            }}
-          >
-            {expanded ? "Ver menos" : `Ver más (${sorted.length - 2})`}
-          </Box>
-        )}
       </Box>
 
-      {/* Chips de campos personalizados */}
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.75 }}>
-        {visibleChips.map((f, i) => (
-          <Box
-            key={i}
+      {/* === Custom Fields Footer (solo valores, compacto) === */}
+      {chips.length > 0 && (
+        <Box
+          sx={{
+            mt: isMobile ? 1 : 1.5,
+            pt: isMobile ? 0.75 : 1,
+          }}
+        >
+          <Typography
+            variant="caption"
             sx={{
-              px: 1,
-              py: 0.4,
-              bgcolor: theme.palette.mode === "dark" ? alpha("#fff", 0.06) : alpha("#000", 0.05),
-              border: `1px solid ${theme.palette.mode === "dark" ? alpha("#fff", 0.08) : alpha("#000", 0.08)}`,
-              color: theme.palette.text.primary,
-              borderRadius: 999,
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              lineHeight: 1.2,
+              display: "block",
+              color: theme.palette.text.secondary,
+              fontWeight: 600,
+              lineHeight: 1.4,
             }}
+            title={chips.map((c) => c.value).join(" • ")}
           >
-            {f.value}
-          </Box>
-        ))}
-        {hiddenChipsCount > 0 && (
-          <Box
-            sx={{
-              px: 1,
-              py: 0.4,
-              borderRadius: 999,
-              bgcolor: theme.palette.mode === "dark" ? alpha("#fff", 0.04) : alpha("#000", 0.04),
-              border: `1px solid ${theme.palette.mode === "dark" ? alpha("#fff", 0.08) : alpha("#000", 0.08)}`,
-              fontSize: "0.75rem",
-              fontWeight: 800,
-            }}
-          >
-            +{hiddenChipsCount}
-          </Box>
-        )}
-      </Box>
+            {(fieldsExpanded ? chips : visibleChips).map((c) => c.value).join(" • ")}
+            {hiddenChipsCount > 0 && !fieldsExpanded && ` • +${hiddenChipsCount}`}
+          </Typography>
+
+          {hiddenChipsCount > 0 && (
+            <Box
+              onClick={(e) => {
+                e.stopPropagation()
+                setFieldsExpanded((v) => !v)
+              }}
+              sx={{
+                mt: 0.5,
+                alignSelf: "flex-start",
+                px: 1,
+                py: 0.35,
+                borderRadius: 999,
+                bgcolor: alpha(theme.palette.mode === "dark" ? "#fff" : "#000", 0.06),
+                border: `1px solid ${alpha(theme.palette.mode === "dark" ? "#fff" : "#000", 0.08)}`,
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                userSelect: "none",
+                cursor: "pointer",
+                transition: "background-color .2s ease, transform .2s ease",
+                "&:hover": { transform: "translateY(-1px)" },
+              }}
+            >
+              {fieldsExpanded ? "Ver menos" : "Ver todos"}
+            </Box>
+          )}
+        </Box>
+      )}
     </Box>
   )
 }
