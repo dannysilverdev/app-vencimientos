@@ -82,7 +82,8 @@ function colorForVariant(variant: DeadlineStatus["variant"], theme: any) {
     case "secondary":
       return theme.palette.warning.main
     case "warning":
-      return theme.palette.warning.light || theme.palette.warning.main
+      // AVISO: color fijo solicitado
+      return "#ffb74d"
     default:
       return theme.palette.success.main
   }
@@ -105,7 +106,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
         icon: <CheckCircle size={16} />,
         daysRemaining: Number.POSITIVE_INFINITY,
         label: d.deadline_types.name,
-        color: "#4caf50",
+        color: "",
         progress: 0,
         currentUsage: hasCurrent ? current : undefined,
         thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
@@ -130,21 +131,17 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     }
 
     let variant: DeadlineStatus["variant"] = "default"
-    let color = "#4caf50"
     let icon: React.ReactNode = <CheckCircle size={16} />
 
     if (progress >= 1) {
       variant = "destructive"
-      color = "#f44336"
       icon = <XCircle size={16} />
     } else if (progress >= WARNING_PROGRESS) {
       variant = "secondary"
-      color = "#ff9800"
       icon = <AlertTriangle size={16} />
     } else if (progress >= EARLY_WARNING_PROGRESS) {
       variant = "warning"
-      color = "#ffb74d"
-      icon = <Info size={16} />     
+      icon = <Info size={16} />
     }
 
     const thresholdUsage = Math.round((baseline + d.frequency) * 100) / 100
@@ -157,7 +154,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
       daysRemaining,
       label: d.deadline_types.name,
       unit,
-      color,
+      color: variant === "warning" ? "#ffb74d" : "", // AVISO color fijo
       progress,
       currentUsage: currentRounded,
       thresholdUsage,
@@ -169,20 +166,16 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
   const diffDays = dueDate ? daysBetween(dueDate, today) : Number.POSITIVE_INFINITY
 
   let variant: DeadlineStatus["variant"] = "default"
-  let color = "#4caf50"
   let icon: React.ReactNode = <CheckCircle size={16} />
 
   if (dueDate && diffDays < 0) {
     variant = "destructive"
-    color = "#f44336"
     icon = <XCircle size={16} />
   } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
     variant = "secondary"
-    color = "#ff9800"
     icon = <AlertTriangle size={16} />
   } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
     variant = "warning"
-    color = "#ffb74d"
     icon = <Info size={16} />
   }
 
@@ -210,7 +203,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     daysRemaining: diffDays,
     label: d.deadline_types.name,
     unit: d.deadline_types.unit || d.frequency_unit || undefined,
-    color,
+    color: variant === "warning" ? "#ffb74d" : "",
     progress,
     elapsedDays,
     totalDays,
@@ -241,7 +234,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const sorted = useMemo(
     () =>
       deadlines
-        .filter((d) => d.status === "active") // 👈 solo activos
+        .filter((d) => d.status === "active")
         .map(getDeadlineStatus)
         .sort((a, b) => a.daysRemaining - b.daysRemaining),
     [deadlines],
@@ -261,6 +254,8 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       ? `linear-gradient(145deg, ${alpha("#fff", 0.08)}, ${alpha("#fff", 0.04)})`
       : `linear-gradient(145deg, ${alpha("#fff", 0.95)}, ${alpha("#fff", 0.8)})`
 
+  const colorFor = (v: DeadlineStatus["variant"]) => colorForVariant(v, theme)
+
   return (
     <Box
       role="button"
@@ -278,8 +273,10 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           theme.palette.mode === "dark"
             ? "0 4px 20px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2)"
             : "0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
-        minWidth: isMobile ? "100%" : 280,
-        maxWidth: isMobile ? "100%" : isTablet ? 360 : 420,
+        // llenar celda en todos los modos
+        width: "100%",
+        maxWidth: "100%",
+        mx: 0,
         cursor: "pointer",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         "&:hover": {
@@ -386,20 +383,20 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               gap: 0.25,
               p: isMobile ? 0.5 : 0.75,
               borderRadius: 2,
-              bgcolor: alpha(colorForVariant(d.variant, theme), 0.05),
-              border: `1px solid ${alpha(colorForVariant(d.variant, theme), 0.15)}`,
+              bgcolor: alpha(colorFor(d.variant), 0.05),
+              border: `1px solid ${alpha(colorFor(d.variant), 0.15)}`,
               transition: "all 0.2s ease",
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ color: colorForVariant(d.variant, theme), display: "flex", alignItems: "center" }}>
+              <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
                 {d.icon}
               </Box>
               <Typography
                 variant="subtitle2"
                 sx={{
                   fontWeight: 700,
-                  color: colorForVariant(d.variant, theme),
+                  color: colorFor(d.variant),
                   fontSize: isMobile ? "0.85rem" : "0.9rem",
                   flex: 1,
                 }}
@@ -439,16 +436,16 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   position: "relative",
                   height: isMobile ? 6 : 8,
                   borderRadius: 999,
-                  bgcolor: alpha(colorForVariant(d.variant, theme), 0.15),
+                  bgcolor: alpha(colorFor(d.variant), 0.15),
                   overflow: "hidden",
                   boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
                   ...(d.variant === "destructive" && {
                     backgroundImage: `repeating-linear-gradient(
                       45deg,
-                      ${alpha(colorForVariant(d.variant, theme), 0.2)} 0px,
-                      ${alpha(colorForVariant(d.variant, theme), 0.2)} 8px,
-                      ${alpha(colorForVariant(d.variant, theme), 0.1)} 8px,
-                      ${alpha(colorForVariant(d.variant, theme), 0.1)} 16px
+                      ${alpha(colorFor(d.variant), 0.2)} 0px,
+                      ${alpha(colorFor(d.variant), 0.2)} 8px,
+                      ${alpha(colorFor(d.variant), 0.1)} 8px,
+                      ${alpha(colorFor(d.variant), 0.1)} 16px
                     )`,
                     animation: "stripeMove 2s linear infinite",
                     "@keyframes stripeMove": {
@@ -465,12 +462,12 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                     top: 0,
                     bottom: 0,
                     width: `${clamp01(d.progress ?? 0) * 100}%`,
-                    bgcolor: colorForVariant(d.variant, theme),
+                    bgcolor: colorFor(d.variant),
                     borderRadius: 999,
                     transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
                     boxShadow:
                       clamp01(d.progress ?? 0) * 100 > 5
-                        ? `0 0 8px ${alpha(colorForVariant(d.variant, theme), 0.4)}`
+                        ? `0 0 8px ${alpha(colorFor(d.variant), 0.4)}`
                         : "none",
                   }}
                 />
@@ -479,7 +476,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                 variant="caption"
                 sx={{
                   fontWeight: 600,
-                  color: colorForVariant(d.variant, theme),
+                  color: colorFor(d.variant),
                   minWidth: isMobile ? 28 : 34,
                   textAlign: "right",
                   fontSize: isMobile ? "0.7rem" : "0.75rem",
