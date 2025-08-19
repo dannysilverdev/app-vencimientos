@@ -11,6 +11,7 @@ import { Save as SaveIcon, FileCopy as FileIcon } from "@mui/icons-material"
 import UsageLogFormForEntity from '@/components/UsageLogFormForEntity'
 import EntityDeadlinesManager from '@/components/EntityDeadlinesManager'
 import CustomFieldsForm from '@/components/CustomFieldsForm'
+import ArchivedDeadlinesList from '@/components/ArchivedDeadlinesList' // 👈 NUEVO IMPORT
 
 type FieldValue = {
   field_id: string
@@ -41,45 +42,27 @@ export default function EditEntityPage() {
       if (!entityId) return
       try {
         const [resEntity, resTypes, resFieldValues] = await Promise.all([
-          // Evitar caché para ver el valor actualizado de tracks_usage al reabrir
           fetch(`/api/entities/${entityId}`, { cache: 'no-store' }),
           fetch(`/api/entity-types`),
           fetch(`/api/entity-field-values/bulk?entity_id=${entityId}`, { cache: 'no-store' })
         ])
 
-        if (!resEntity.ok) {
-          const errData = await resEntity.json().catch(() => null)
-          throw new Error(errData?.error || 'No se pudo cargar la entidad')
-        }
-        if (!resTypes.ok) {
-          const errData = await resTypes.json().catch(() => null)
-          throw new Error(errData?.error || 'No se pudieron cargar los tipos de entidad')
-        }
+        if (!resEntity.ok) throw new Error((await resEntity.json())?.error || 'No se pudo cargar la entidad')
+        if (!resTypes.ok) throw new Error((await resTypes.json())?.error || 'No se pudieron cargar los tipos')
 
-        const [entityData, typeData] = await Promise.all([
-          resEntity.json(),
-          resTypes.json()
-        ])
+        const [entityData, typeData] = await Promise.all([resEntity.json(), resTypes.json()])
+        const allFields = resFieldValues.ok ? await resFieldValues.json() : []
 
-        let fieldValuesData: FieldValue[] = []
-        if (resFieldValues.ok) {
-          try {
-            const allFields = await resFieldValues.json()
-            fieldValuesData = allFields.filter((f: FieldValue) =>
-              f.entity_fields?.entity_type_id === entityData.type_id
-            )
-          } catch {
-            console.warn('⚠️ Respuesta vacía en bulk')
-          }
-        }
+        const filteredFields = allFields.filter((f: FieldValue) =>
+          f.entity_fields?.entity_type_id === entityData.type_id
+        )
 
         setEntity(entityData)
         setEditedName(entityData.name)
         setEditedTypeId(entityData.type_id)
-        // Normalizar booleano por seguridad
         setTracksUsage(Boolean(entityData?.tracks_usage))
         setEntityTypes(typeData)
-        setFieldValues(fieldValuesData)
+        setFieldValues(filteredFields)
       } catch (err) {
         console.error(err)
         setError('Error al cargar los datos.')
@@ -102,13 +85,10 @@ export default function EditEntityPage() {
       const entityPayload = {
         name: editedName?.trim(),
         type_id: editedTypeId,
-        // Enviar booleano definitivo
         tracks_usage: Boolean(tracksUsage)
       }
 
-      if (!entityPayload.name) {
-        throw new Error('El nombre no puede estar vacío.')
-      }
+      if (!entityPayload.name) throw new Error('El nombre no puede estar vacío.')
 
       const res = await fetch(`/api/entities/${entityId}`, {
         method: 'PUT',
@@ -116,10 +96,7 @@ export default function EditEntityPage() {
         body: JSON.stringify(entityPayload)
       })
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null)
-        throw new Error(errorData?.error || 'Error al guardar entidad')
-      }
+      if (!res.ok) throw new Error((await res.json())?.error || 'Error al guardar entidad')
 
       const resFields = await fetch(`/api/entity-field-values/bulk`, {
         method: 'POST',
@@ -133,10 +110,7 @@ export default function EditEntityPage() {
         })
       })
 
-      if (!resFields.ok) {
-        const data = await resFields.json().catch(() => null)
-        throw new Error(data?.error || 'Error al guardar campos personalizados')
-      }
+      if (!resFields.ok) throw new Error((await resFields.json())?.error || 'Error al guardar campos personalizados')
 
       router.push('/manage')
     } catch (err: any) {
@@ -209,6 +183,8 @@ export default function EditEntityPage() {
       )}
 
       <EntityDeadlinesManager entityId={entityId} />
+
+      <ArchivedDeadlinesList entityId={entityId} /> {/* ✅ Historial integrado aquí */}
     </Container>
   )
 }

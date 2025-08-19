@@ -69,7 +69,7 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
       fetch(`/api/deadline-types`)
     ])
     const [dData, dtData] = await Promise.all([resDeadlines.json(), resDeadlineTypes.json()])
-    setDeadlines(dData)
+    setDeadlines(dData.filter((d: any) => d.status === 'active')) // Mostrar solo activos
     setDeadlineTypes(dtData)
   }
 
@@ -259,9 +259,13 @@ export default function EntityDeadlinesManager({ entityId }: { entityId: string 
               <IconButton onClick={() => confirmDelete(d)}><DeleteIcon /></IconButton>
             </Box>
           </Stack>
-          <Typography variant="body2">
-            Última realización: {new Date(d.last_done).toLocaleDateString()}
-          </Typography>
+          
+{d.last_done && !isNaN(new Date(d.last_done).getTime()) && (
+  <Typography variant="body2">
+    Última realización: {new Date(d.last_done).toISOString().split('T')[0]}
+  </Typography>
+)}
+
         </Box>
       ))}
 

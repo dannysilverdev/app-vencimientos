@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       frequency_unit,
       usage_daily_average,
       next_due_date,
+      status,
       deadline_types (
         name,
         measure_by,
@@ -64,6 +65,18 @@ export async function POST(req: NextRequest) {
 
   const measureBy = deadlineType?.measure_by
 
+  // Archivar vencimientos anteriores activos del mismo tipo y entidad
+  const { error: archiveError } = await supabaseAdmin
+    .from('deadlines')
+    .update({ status: 'archived' })
+    .eq('entity_id', entity_id)
+    .eq('type_id', type_id)
+    .eq('status', 'active')
+
+  if (archiveError) {
+    return NextResponse.json({ error: 'Error al archivar vencimientos anteriores.' }, { status: 500 })
+  }
+
   const insertPayload = {
     entity_id,
     type_id,
@@ -71,7 +84,8 @@ export async function POST(req: NextRequest) {
     frequency: measureBy === 'usage' ? frequency : null,
     frequency_unit: measureBy === 'usage' ? frequency_unit : null,
     usage_daily_average: measureBy === 'usage' ? usage_daily_average : null,
-    next_due_date: measureBy === 'date' ? next_due_date : null
+    next_due_date: measureBy === 'date' ? next_due_date : null,
+    status: 'active'
   }
 
   const { data, error } = await supabaseAdmin

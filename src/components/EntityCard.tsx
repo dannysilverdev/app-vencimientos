@@ -5,7 +5,7 @@ import type React from "react"
 import { useMemo, useState } from "react"
 import { Box, Typography, useTheme, useMediaQuery } from "@mui/material"
 import { alpha } from "@mui/material/styles"
-import { AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react"
+import { AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp, Info } from "lucide-react"
 
 type Entity = {
   id: string
@@ -22,6 +22,7 @@ type Deadline = {
   next_due_date: string | null
   current_usage?: number
   baseline_usage?: number
+  status?: string
   deadline_types: {
     name: string
     measure_by: string
@@ -46,7 +47,7 @@ type FieldValue = {
 type DeadlineStatus = {
   color: string
   text: string
-  variant: "default" | "secondary" | "destructive"
+  variant: "default" | "warning" | "secondary" | "destructive"
   icon: React.ReactNode
   daysRemaining: number
   label: string
@@ -58,8 +59,10 @@ type DeadlineStatus = {
   totalDays?: number
 }
 
-const WARNING_PROGRESS = 0.85
-const DEADLINE_WARNING_DAYS = 30
+const WARNING_PROGRESS = 0.85            // “Próximo a vencer” (uso)
+const EARLY_WARNING_PROGRESS = 0.7       // “Aviso” (uso)
+const DEADLINE_WARNING_DAYS = 30         // “Próximo a vencer” (fecha)
+const DEADLINE_EARLY_WARNING_DAYS = 60   // “Aviso” (fecha)
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 function clamp01(n: number) {
@@ -78,6 +81,8 @@ function colorForVariant(variant: DeadlineStatus["variant"], theme: any) {
       return theme.palette.error.main
     case "secondary":
       return theme.palette.warning.main
+    case "warning":
+      return theme.palette.warning.light || theme.palette.warning.main
     default:
       return theme.palette.success.main
   }
@@ -136,6 +141,10 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
       variant = "secondary"
       color = "#ff9800"
       icon = <AlertTriangle size={16} />
+    } else if (progress >= EARLY_WARNING_PROGRESS) {
+      variant = "warning"
+      color = "#ffb74d"
+      icon = <Info size={16} />     
     }
 
     const thresholdUsage = Math.round((baseline + d.frequency) * 100) / 100
@@ -171,6 +180,10 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
     variant = "secondary"
     color = "#ff9800"
     icon = <AlertTriangle size={16} />
+  } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
+    variant = "warning"
+    color = "#ffb74d"
+    icon = <Info size={16} />
   }
 
   let progress = 0
@@ -226,81 +239,15 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
   const sorted = useMemo(
-    () => deadlines.map(getDeadlineStatus).sort((a, b) => a.daysRemaining - b.daysRemaining),
+    () =>
+      deadlines
+        .filter((d) => d.status === "active") // 👈 solo activos
+        .map(getDeadlineStatus)
+        .sort((a, b) => a.daysRemaining - b.daysRemaining),
     [deadlines],
   )
 
   const visibleCount = sorted.length
-
-  const renderProgressBar = (progress: number | undefined, variant: DeadlineStatus["variant"], labelA11y: string) => {
-    const pct = clamp01(progress ?? 0) * 100
-    const fill = colorForVariant(variant, theme)
-    const track = alpha(fill, 0.15)
-    const isOverdue = variant === "destructive"
-
-    return (
-      <Box
-        aria-label={`${labelA11y}: ${Math.round(pct)}%`}
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(pct)}
-        sx={{ mt: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}
-      >
-        <Box
-          sx={{
-            flex: 1,
-            position: "relative",
-            height: isMobile ? 6 : 8,
-            borderRadius: 999,
-            bgcolor: track,
-            overflow: "hidden",
-            boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
-            ...(isOverdue && {
-              backgroundImage: `repeating-linear-gradient(
-                45deg,
-                ${alpha(fill, 0.2)} 0px,
-                ${alpha(fill, 0.2)} 8px,
-                ${alpha(fill, 0.1)} 8px,
-                ${alpha(fill, 0.1)} 16px
-              )`,
-              animation: "stripeMove 2s linear infinite",
-              "@keyframes stripeMove": {
-                "0%": { backgroundPosition: "0 0" },
-                "100%": { backgroundPosition: "32px 0" },
-              },
-            }),
-          }}
-        >
-          <Box
-            sx={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: `${pct}%`,
-              bgcolor: fill,
-              borderRadius: 999,
-              transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
-              boxShadow: pct > 5 ? `0 0 8px ${alpha(fill, 0.4)}` : "none",
-            }}
-          />
-        </Box>
-        <Typography
-          variant="caption"
-          sx={{
-            fontWeight: 600,
-            color: fill,
-            minWidth: isMobile ? 28 : 34,
-            textAlign: "right",
-            fontSize: isMobile ? "0.7rem" : "0.75rem",
-          }}
-        >
-          {Math.round(pct)}%
-        </Typography>
-      </Box>
-    )
-  }
 
   const surface =
     theme.palette.mode === "dark"
@@ -393,7 +340,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         </Box>
       )}
 
-      {/* === Header Section === */}
+      {/* Header */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
         <Typography
           variant={isMobile ? "h6" : "h5"}
@@ -428,7 +375,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         )}
       </Box>
 
-      {/* === Deadlines Section === */}
+      {/* Deadlines */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: isMobile ? 0.5 : 0.75, flex: 1 }}>
         {sorted.slice(0, visibleCount).map((d, i) => (
           <Box

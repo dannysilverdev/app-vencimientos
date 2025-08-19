@@ -56,6 +56,7 @@ type Deadline = {
   next_due_date: string | null
   current_usage?: number
   baseline_usage?: number
+  status?: string // activo/inactivo
   deadline_types: {
     name: string
     measure_by: string
@@ -65,13 +66,14 @@ type Deadline = {
 
 type DeadlineStatus = {
   text: string
-  variant: "default" | "secondary" | "destructive"
+  variant: "default" | "warning" | "secondary" | "destructive"
   icon: React.ReactNode
   daysRemaining: number
 }
 
 // ======= Config =======
-const DEADLINE_WARNING_DAYS = 30 // ⚠️ Amarillo si faltan ≤ 30 días (vencimientos por fecha)
+const DEADLINE_WARNING_DAYS = 30         // 🟠 Próximo a vencer (≤30 días)
+const DEADLINE_EARLY_WARNING_DAYS = 60   // 🔵 Aviso (≤60 días)
 
 // ======= Helpers UI =======
 const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
@@ -83,14 +85,14 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
       gap,
       overflowX: { xs: "auto", md: "visible" },
       py: 0.25,
-      px: { xs: 0, sm: 0 }, // 🔧 sin padding lateral
+      px: { xs: 0, sm: 0 },
       scrollbarWidth: "thin",
       scrollSnapType: { xs: "x mandatory", md: "none" },
       "& > *": {
         flex: "0 0 auto",
         scrollSnapAlign: { xs: "start", md: "none" },
       },
-      mb: 0.75, // 🔧 menos margen inferior
+      mb: 0.75,
     }}
   >
     {children}
@@ -103,7 +105,7 @@ export default function HomePage() {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
 
   const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "warning" | "overdue">("all")
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "good" | "early" | "warning" | "overdue">("all")
   const [entities, setEntities] = useState<Entity[]>([])
   const [deadlinesByEntity, setDeadlinesByEntity] = useState<Record<string, Deadline[]>>({})
   const [fieldValuesByEntity, setFieldValuesByEntity] = useState<Record<string, FieldValue[]>>({})
@@ -131,6 +133,10 @@ export default function HomePage() {
           const rawDeadlines: Deadline[] = await dRes.json()
           const fields: FieldValue[] = await fRes.json()
 
+          // Solo deadlines activos
+          const activeDeadlines = (rawDeadlines || []).filter(d => d.status === "active")
+
+          // uso actual (último registro)
           const { data: latestUsageRows, error: latestUsageErr } = await supabase
             .from("usage_logs")
             .select("value, date")
@@ -143,7 +149,7 @@ export default function HomePage() {
 
           const enrichedDeadlines: Deadline[] = []
 
-          for (const d of rawDeadlines) {
+          for (const d of activeDeadlines) {
             if (d?.deadline_types?.measure_by === "usage" && d?.last_done) {
               const { data: baselineRows, error: baselineErr } = await supabase
                 .from("usage_logs")
@@ -187,6 +193,7 @@ export default function HomePage() {
   }, [entities])
 
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
+    // Estado por FECHA para los filtros
     const today = new Date()
     const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
 
@@ -198,8 +205,11 @@ export default function HomePage() {
       variant = "destructive"
       icon = <XCircle size={16} />
     } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-      variant = "secondary"
+      variant = "secondary"   // 🟠 ≤30 días
       icon = <AlertTriangle size={16} />
+    } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
+      variant = "warning"     // 🔵 ≤60 días
+      icon = <Info size={16} />         // 👈 icono distinto para AVISO
     }
 
     return {
@@ -210,9 +220,11 @@ export default function HomePage() {
     }
   }
 
-  function getEntityStatus(deadlines: DeadlineStatus[]): "good" | "warning" | "overdue" {
+  // Prioridad: overdue > warning(🟠) > early(🔵) > good
+  function getEntityStatus(deadlines: DeadlineStatus[]): "good" | "early" | "warning" | "overdue" {
     if (deadlines.some(d => d.variant === "destructive")) return "overdue"
     if (deadlines.some(d => d.variant === "secondary")) return "warning"
+    if (deadlines.some(d => d.variant === "warning")) return "early"
     return "good"
   }
 
@@ -237,10 +249,10 @@ export default function HomePage() {
   return (
     <Box
       sx={{
-        mt: 0,                        // 🔧 sin margen superior
+        mt: 0,
         width: "100%",
-        maxWidth: "100%",             // 🔧 usar todo el ancho
-        px: 0,                        // 🔧 sin padding lateral
+        maxWidth: "100%",
+        px: 0,
         mx: "auto"
       }}
     >
@@ -248,20 +260,21 @@ export default function HomePage() {
       <Box
         sx={{
           position: "sticky",
-          top: 0,                     // 🔧 pegado arriba
+          top: 0,
           zIndex: 10,
           bgcolor: "background.default",
           borderBottom: "1px solid",
           borderColor: "divider",
-          pt: 0.25,                   // 🔧 menos padding
-          pb: 0.25,                   // 🔧 menos padding
-          mb: 0.5,                    // 🔧 menos margen inferior
-          px: 0                       // 🔧 sin padding lateral
+          pt: 0.25,
+          pb: 0.25,
+          mb: 0.5,
+          px: 0
         }}
       >
         <HScroll gap={0.5}>
           <Chip label="Todos" onClick={() => setSelectedStatus("all")} color={selectedStatus === "all" ? "primary" : "default"} icon={<Circle style={{ fontSize: 12 }} />} />
           <Chip label="Al día" onClick={() => setSelectedStatus("good")} color={selectedStatus === "good" ? "success" : "default"} icon={<CheckCircle size={14} />} />
+          <Chip label="Aviso" onClick={() => setSelectedStatus("early")} color={selectedStatus === "early" ? "info" : "default"} icon={<Info size={14} />} />
           <Chip label="Pronto" onClick={() => setSelectedStatus("warning")} color={selectedStatus === "warning" ? "warning" : "default"} icon={<AlertTriangle size={14} />} />
           <Chip label="Vencidas" onClick={() => setSelectedStatus("overdue")} color={selectedStatus === "overdue" ? "error" : "default"} icon={<XCircle size={14} />} />
         </HScroll>
@@ -282,35 +295,37 @@ export default function HomePage() {
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => (
-          <Box key={typeName} sx={{ mb: 3 /* 🔧 menos separación entre grupos */ }}>
-            <Typography variant="h6" sx={{ mb: 1, color: "primary.main", px: 1 /* 🔧 leve sangría, no padding extra */ }}>
+          <Box key={typeName} sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 1, color: "primary.main", px: 1 }}>
               {typeName}
             </Typography>
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: { xs: "1fr", sm: "repeat(auto-fill, minmax(320px, 1fr))" },
-                gap: { xs: 1, sm: 1.5 }, // 🔧 gaps más pequeños entre tarjetas
+                gap: { xs: 1, sm: 1.5 },
                 alignItems: "stretch",
                 justifyItems: "stretch",
-                px: 1 // 🔧 leve respiro para que no queden pegadas al borde absoluto
+                px: 1
               }}
             >
               {group.map(entity => {
-                const deadlines = deadlinesByEntity[entity.id] || []
-                const deadlineWithStatus = deadlines.map(d => ({
+                const deadlinesAll = deadlinesByEntity[entity.id] || []
+                const deadlinesActive = deadlinesAll.filter(d => d.status === "active")
+
+                const deadlineWithStatus = deadlinesActive.map(d => ({
                   ...d,
-                  next_due_date: d.next_due_date,
                   status: getDeadlineStatus(d)
                 }))
-                const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status))
+
+                const entityStatus = getEntityStatus(deadlineWithStatus.map(d => d.status as DeadlineStatus))
                 if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
 
                 return (
-                  <Box key={entity.id} sx={{ width: "100%", mx: 0 /* 🔧 sin margen horizontal extra */ }}>
+                  <Box key={entity.id} sx={{ width: "100%", mx: 0 }}>
                     <EntityCard
                       entity={entity}
-                      deadlines={deadlines}
+                      deadlines={deadlinesAll}     // EntityCard ya filtra activos internamente
                       fieldValues={fieldValuesByEntity[entity.id] || []}
                       onClick={() => setOpenEntityId(entity.id)}
                     />
