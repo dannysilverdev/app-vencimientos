@@ -185,7 +185,7 @@ function getDeadlineStatus(d: Deadline): DeadlineStatus {
 
   if (lastDone && dueDate) {
     const total = Math.max(1, daysBetween(dueDate, lastDone))
-    const elapsed = Math.max(0, Math.min(total, daysBetween(today, lastDone)))
+    const elapsed = Math.max(0, Math.min(total, daysBetween(new Date(), lastDone)))
     totalDays = total
     elapsedDays = Math.max(0, Math.min(total, elapsed))
     progress = clamp01(elapsed / total)
@@ -214,16 +214,16 @@ type Props = {
   entity: Entity
   deadlines: Deadline[]
   fieldValues?: FieldValue[]
-  onClick: () => void
+  onClick?: () => void
 }
 
 export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-  const isTablet = useMediaQuery(theme.breakpoints.down("md"))
-  const [deadlinesExpanded, setDeadlinesExpanded] = useState(false)
-  const [fieldsExpanded, setFieldsExpanded] = useState(false)
+  // expanded = false (compacto) por defecto → solo barras
+  const [expanded, setExpanded] = useState(false)
 
+  // Personalización por entidad (chips): se mantiene EXACTAMENTE igual que antes
   const chips = useMemo(
     () => fieldValues.filter((f) => f.entity_fields?.show_in_card && f.value?.trim()),
     [fieldValues],
@@ -239,8 +239,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         .sort((a, b) => a.daysRemaining - b.daysRemaining),
     [deadlines],
   )
-
-  const visibleCount = sorted.length
 
   const surface =
     theme.palette.mode === "dark"
@@ -262,7 +260,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onClick()
+        if (e.key === "Enter" || e.key === " ") onClick?.()
       }}
       sx={{
         background: surface,
@@ -273,7 +271,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           theme.palette.mode === "dark"
             ? "0 4px 20px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2)"
             : "0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
-        // llenar celda en todos los modos
         width: "100%",
         maxWidth: "100%",
         mx: 0,
@@ -297,15 +294,16 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         },
         display: "flex",
         flexDirection: "column",
-        gap: isMobile ? 1.5 : 2,
+        gap: isMobile ? 1.25 : 1.75,
         position: "relative",
       }}
     >
+      {/* Botón flotante: se mantiene, por defecto chevron-down; al presionar muestra TODO */}
       {sorted.length > 0 && (
         <Box
           onClick={(e) => {
             e.stopPropagation()
-            setDeadlinesExpanded((v) => !v)
+            setExpanded((v) => !v)
           }}
           sx={{
             position: "absolute",
@@ -332,8 +330,9 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               transform: "translateY(0px) scale(1)",
             },
           }}
+          title={expanded ? "Mostrar menos" : "Mostrar más"}
         >
-          {deadlinesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </Box>
       )}
 
@@ -354,6 +353,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           {entity.name}
         </Typography>
 
+        {/* INFO PERSONALIZADA: NO SE TOCA. SIEMPRE visible si existe */}
         {chips.length > 0 && (
           <Typography
             variant="body2"
@@ -373,8 +373,15 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       </Box>
 
       {/* Deadlines */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: isMobile ? 0.5 : 0.75, flex: 1 }}>
-        {sorted.slice(0, visibleCount).map((d, i) => (
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: isMobile ? 0.5 : 0.75,
+          flex: 1,
+        }}
+      >
+        {sorted.map((d, i) => (
           <Box
             key={i}
             sx={{
@@ -388,47 +395,34 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               transition: "all 0.2s ease",
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
-                {d.icon}
+            {/* Compacto: SOLO la barra. Expandido: también título+icono y textos */}
+            {expanded && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
+                  {d.icon}
+                </Box>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontWeight: 700,
+                    color: colorFor(d.variant),
+                    fontSize: isMobile ? "0.85rem" : "0.9rem",
+                    flex: 1,
+                  }}
+                >
+                  {d.unit ? `${d.label} (${d.unit})` : d.label}
+                </Typography>
               </Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontWeight: 700,
-                  color: colorFor(d.variant),
-                  fontSize: isMobile ? "0.85rem" : "0.9rem",
-                  flex: 1,
-                }}
-              >
-                {d.unit ? `${d.label} (${d.unit})` : d.label}
-              </Typography>
-            </Box>
-
-            {deadlinesExpanded && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  fontSize: isMobile ? "0.8rem" : "0.85rem",
-                  lineHeight: 1.4,
-                }}
-              >
-                {d.daysRemaining < 0
-                  ? `Venció el ${d.text}`
-                  : isFinite(d.daysRemaining)
-                    ? `${d.daysRemaining} días para vencer el ${d.text}`
-                    : `Sin fecha definida`}
-              </Typography>
             )}
 
+            {/* Barra de progreso (siempre visible) */}
             <Box
               aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
-              sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1.5 }}
+              sx={{ mt: expanded ? 0.5 : 0, display: "flex", alignItems: "center", gap: expanded ? 1.5 : 0 }}
             >
               <Box
                 sx={{
@@ -472,38 +466,59 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   }}
                 />
               </Box>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 600,
-                  color: colorFor(d.variant),
-                  minWidth: isMobile ? 28 : 34,
-                  textAlign: "right",
-                  fontSize: isMobile ? "0.7rem" : "0.75rem",
-                }}
-              >
-                {Math.round(clamp01(d.progress ?? 0) * 100)}%
-              </Typography>
+              {/* Porcentaje: solo si expandido */}
+              {expanded && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 600,
+                    color: colorFor(d.variant),
+                    minWidth: isMobile ? 28 : 34,
+                    textAlign: "right",
+                    fontSize: isMobile ? "0.7rem" : "0.75rem",
+                  }}
+                >
+                  {Math.round(clamp01(d.progress ?? 0) * 100)}%
+                </Typography>
+              )}
             </Box>
 
-            {deadlinesExpanded && (
-              <Typography
-                variant="caption"
-                sx={{
-                  color: theme.palette.text.secondary,
-                  fontSize: isMobile ? "0.7rem" : "0.75rem",
-                  fontWeight: 500,
-                  lineHeight: 1.3,
-                }}
-              >
-                {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
-                  ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Límite: ${d.thresholdUsage} ${d.unit ?? ""}`
-                  : Number.isFinite(d.elapsedDays) && Number.isFinite(d.totalDays)
-                    ? `Transcurrido: ${d.elapsedDays}/${d.totalDays} días`
+            {/* Detalles: solo si expandido */}
+            {expanded && (
+              <>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    fontSize: isMobile ? "0.8rem" : "0.85rem",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {d.daysRemaining < 0
+                    ? `Venció el ${d.text}`
                     : isFinite(d.daysRemaining)
-                      ? `Quedan ${Math.max(0, d.daysRemaining)} días`
-                      : "Progreso no disponible"}
-              </Typography>
+                      ? `${d.daysRemaining} días para vencer el ${d.text}`
+                      : `Sin fecha definida`}
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    fontSize: isMobile ? "0.7rem" : "0.75rem",
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {typeof d.currentUsage === "number" && typeof d.thresholdUsage === "number"
+                    ? `Uso actual: ${d.currentUsage} ${d.unit ?? ""} • Límite: ${d.thresholdUsage} ${d.unit ?? ""}`
+                    : Number.isFinite(d.elapsedDays) && Number.isFinite(d.totalDays)
+                      ? `Transcurrido: ${d.elapsedDays}/${d.totalDays} días`
+                      : isFinite(d.daysRemaining)
+                        ? `Quedan ${Math.max(0, d.daysRemaining)} días`
+                        : "Progreso no disponible"}
+                </Typography>
+              </>
             )}
           </Box>
         ))}
