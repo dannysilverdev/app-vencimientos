@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Container,
@@ -42,15 +42,15 @@ export default function EntityTypeFieldsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingField, setEditingField] = useState<Partial<EntityField>>({})
 
-  useEffect(() => {
-    fetchFields()
-  }, [entityTypeId])
-
-  const fetchFields = async () => {
+  const fetchFields = useCallback(async () => {
     const res = await fetch(`/api/entity-fields?entity_type_id=${entityTypeId}`)
     const data = await res.json()
     setFields(data)
-  }
+  }, [entityTypeId])
+
+  useEffect(() => {
+    fetchFields()
+  }, [fetchFields])
 
   const addField = async () => {
     if (!newName.trim()) return
