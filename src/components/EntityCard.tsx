@@ -220,7 +220,7 @@ type Props = {
 export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-  // expanded = false (compacto) por defecto → solo barras
+  // expanded = false (compacto) por defecto → solo barras + etiqueta a la izquierda
   const [expanded, setExpanded] = useState(false)
 
   // Personalización por entidad (chips): se mantiene EXACTAMENTE igual que antes
@@ -395,7 +395,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               transition: "all 0.2s ease",
             }}
           >
-            {/* Compacto: SOLO la barra. Expandido: también título+icono y textos */}
+            {/* Expandido: título + icono */}
             {expanded && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
@@ -415,59 +415,127 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               </Box>
             )}
 
-            {/* Barra de progreso (siempre visible) */}
-            <Box
-              aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
-              sx={{ mt: expanded ? 0.5 : 0, display: "flex", alignItems: "center", gap: expanded ? 1.5 : 0 }}
-            >
+            {/* Barra + (compacto: etiqueta a la izquierda; expandido: porcentaje a la derecha) */}
+            {!expanded ? (
+              // MODO COMPACTO: etiqueta (color según estado) + barra
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography
+                  variant="caption"
+                  noWrap
+                  sx={{
+                    flexBasis: "38%",
+                    flexGrow: 0,
+                    flexShrink: 1,
+                    color: colorFor(d.variant), // color igual al estado
+                    fontWeight: 600,
+                    letterSpacing: 0.1,
+                    minWidth: 0,
+                  }}
+                  title={d.unit ? `${d.label} (${d.unit})` : d.label}
+                >
+                  {d.unit ? `${d.label} (${d.unit})` : d.label}
+                </Typography>
+
+                <Box
+                  aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
+                  sx={{
+                    flex: 1,
+                    position: "relative",
+                    height: isMobile ? 6 : 8,
+                    borderRadius: 999,
+                    bgcolor: alpha(colorFor(d.variant), 0.15),
+                    overflow: "hidden",
+                    boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
+                    ...(d.variant === "destructive" && {
+                      backgroundImage: `repeating-linear-gradient(
+                        45deg,
+                        ${alpha(colorFor(d.variant), 0.2)} 0px,
+                        ${alpha(colorFor(d.variant), 0.2)} 8px,
+                        ${alpha(colorFor(d.variant), 0.1)} 8px,
+                        ${alpha(colorFor(d.variant), 0.1)} 16px
+                      )`,
+                      animation: "stripeMove 2s linear infinite",
+                      "@keyframes stripeMove": {
+                        "0%": { backgroundPosition: "0 0" },
+                        "100%": { backgroundPosition: "32px 0" },
+                      },
+                    }),
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: `${clamp01(d.progress ?? 0) * 100}%`,
+                      bgcolor: colorFor(d.variant),
+                      borderRadius: 999,
+                      transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow:
+                        clamp01(d.progress ?? 0) * 100 > 5
+                          ? `0 0 8px ${alpha(colorFor(d.variant), 0.4)}`
+                          : "none",
+                    }}
+                  />
+                </Box>
+              </Box>
+            ) : (
+              // MODO EXPANDIDO: barra + porcentaje
               <Box
-                sx={{
-                  flex: 1,
-                  position: "relative",
-                  height: isMobile ? 6 : 8,
-                  borderRadius: 999,
-                  bgcolor: alpha(colorFor(d.variant), 0.15),
-                  overflow: "hidden",
-                  boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
-                  ...(d.variant === "destructive" && {
-                    backgroundImage: `repeating-linear-gradient(
-                      45deg,
-                      ${alpha(colorFor(d.variant), 0.2)} 0px,
-                      ${alpha(colorFor(d.variant), 0.2)} 8px,
-                      ${alpha(colorFor(d.variant), 0.1)} 8px,
-                      ${alpha(colorFor(d.variant), 0.1)} 16px
-                    )`,
-                    animation: "stripeMove 2s linear infinite",
-                    "@keyframes stripeMove": {
-                      "0%": { backgroundPosition: "0 0" },
-                      "100%": { backgroundPosition: "32px 0" },
-                    },
-                  }),
-                }}
+                aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
+                sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1.5 }}
               >
                 <Box
                   sx={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: `${clamp01(d.progress ?? 0) * 100}%`,
-                    bgcolor: colorFor(d.variant),
+                    flex: 1,
+                    position: "relative",
+                    height: isMobile ? 6 : 8,
                     borderRadius: 999,
-                    transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
-                    boxShadow:
-                      clamp01(d.progress ?? 0) * 100 > 5
-                        ? `0 0 8px ${alpha(colorFor(d.variant), 0.4)}`
-                        : "none",
+                    bgcolor: alpha(colorFor(d.variant), 0.15),
+                    overflow: "hidden",
+                    boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.1)}`,
+                    ...(d.variant === "destructive" && {
+                      backgroundImage: `repeating-linear-gradient(
+                        45deg,
+                        ${alpha(colorFor(d.variant), 0.2)} 0px,
+                        ${alpha(colorFor(d.variant), 0.2)} 8px,
+                        ${alpha(colorFor(d.variant), 0.1)} 8px,
+                        ${alpha(colorFor(d.variant), 0.1)} 16px
+                      )`,
+                      animation: "stripeMove 2s linear infinite",
+                      "@keyframes stripeMove": {
+                        "0%": { backgroundPosition: "0 0" },
+                        "100%": { backgroundPosition: "32px 0" },
+                      },
+                    }),
                   }}
-                />
-              </Box>
-              {/* Porcentaje: solo si expandido */}
-              {expanded && (
+                >
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: `${clamp01(d.progress ?? 0) * 100}%`,
+                      bgcolor: colorFor(d.variant),
+                      borderRadius: 999,
+                      transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow:
+                        clamp01(d.progress ?? 0) * 100 > 5
+                          ? `0 0 8px ${alpha(colorFor(d.variant), 0.4)}`
+                          : "none",
+                    }}
+                  />
+                </Box>
                 <Typography
                   variant="caption"
                   sx={{
@@ -480,8 +548,8 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                 >
                   {Math.round(clamp01(d.progress ?? 0) * 100)}%
                 </Typography>
-              )}
-            </Box>
+              </Box>
+            )}
 
             {/* Detalles: solo si expandido */}
             {expanded && (
