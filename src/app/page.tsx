@@ -25,10 +25,12 @@ import {
   Info,
   Tag,
   User,
+  LayoutGrid,
+  List
 } from "lucide-react"
 import { alpha } from "@mui/material/styles"
 import { supabase } from "@/lib/supabaseClient"
-import EntityCard from "@/components/EntityCard"
+import EntityCollection from "@/components/EntityCollection"
 
 // ======= Tipos =======
 type Entity = {
@@ -160,7 +162,10 @@ const StatusFilterBar: React.FC<{
 }> = ({ selected, onChange }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-  const baseMobileSx = isMobile ? { px: 1, py: 0.25, flex: "1 1 48%" } : {}
+
+  // 🟢 Mobile: "Todos" ocupa toda la fila; el resto a 1/2
+  const todosMobileSx = isMobile ? { px: 1.25, py: 0.5, flex: "1 1 100%" } : {}
+  const othersMobileSx = isMobile ? { px: 1, py: 0.25, flex: "1 1 48%" } : {}
 
   const variantFor = (active: boolean): ChipProps["variant"] => (active ? "filled" : "outlined")
   const sizeFor = isMobile ? ("small" as const) : ("medium" as const)
@@ -179,34 +184,41 @@ const StatusFilterBar: React.FC<{
 
   return (
     <HScroll gap={0.5}>
+      {/* TODOS: ancho completo en mobile + un pelín más de presencia */}
       <Chip
         label="Todos"
-        icon={<Circle style={{ fontSize: 12 }} />}
-        sx={{ ...baseMobileSx, ...paletteChipSx(theme, primaryMain, selected === "all") }}
-        {...commonProps("all")}
+        icon={<Circle size={14} />}
+        sx={{
+          ...todosMobileSx,
+          ...paletteChipSx(theme, primaryMain, selected === "all"),
+          fontWeight: 700,
+        }}
+        size={isMobile ? "medium" : "medium"}
+        onClick={() => onChange("all")}
+        variant={variantFor(selected === "all")}
       />
       <Chip
         label="Al día"
         icon={<CheckCircle size={14} />}
-        sx={{ ...baseMobileSx, ...paletteChipSx(theme, successMain, selected === "good") }}
+        sx={{ ...othersMobileSx, ...paletteChipSx(theme, successMain, selected === "good") }}
         {...commonProps("good")}
       />
       <Chip
         label="Aviso"
         icon={<Info size={14} />}
-        sx={{ ...baseMobileSx, ...avisoChipSx(theme, selected === "early") }}
+        sx={{ ...othersMobileSx, ...avisoChipSx(theme, selected === "early") }}
         {...commonProps("early")}
       />
       <Chip
         label="Pronto"
         icon={<AlertTriangle size={14} />}
-        sx={{ ...baseMobileSx, ...paletteChipSx(theme, warningMain, selected === "warning") }}
+        sx={{ ...othersMobileSx, ...paletteChipSx(theme, warningMain, selected === "warning") }}
         {...commonProps("warning")}
       />
       <Chip
         label="Vencidas"
         icon={<XCircle size={14} />}
-        sx={{ ...baseMobileSx, ...paletteChipSx(theme, errorMain, selected === "overdue") }}
+        sx={{ ...othersMobileSx, ...paletteChipSx(theme, errorMain, selected === "overdue") }}
         {...commonProps("overdue")}
       />
     </HScroll>
@@ -224,6 +236,7 @@ export default function HomePage() {
   const [deadlinesByEntity, setDeadlinesByEntity] = useState<Record<string, Deadline[]>>({})
   const [fieldValuesByEntity, setFieldValuesByEntity] = useState<Record<string, FieldValue[]>>({})
   const [openEntityId, setOpenEntityId] = useState<string | null>(null)
+  const [viewModes, setViewModes] = useState<Record<string, "grid" | "list">>({}) // 👈 modo por tipo (key: typeName)
 
   useEffect(() => {
     fetch("/api/entities")
@@ -416,55 +429,54 @@ export default function HomePage() {
 
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
-        .map(([typeName, group]) => (
-          <Box key={typeName} sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 1, color: "primary.main", px: 1 }}>
-              {typeName}
-            </Typography>
-            <Box
-              sx={{
-                display: "grid",
-                // 4 columnas en desktop (lg), usando todo el ancho
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(3, minmax(0, 1fr))",
-                  lg: "repeat(4, minmax(0, 1fr))",
-                },
-                gap: { xs: 1, sm: 1.5, md: 2 },
-                alignItems: "start",
-                justifyItems: "stretch", // llenar la celda
-                px: { xs: 0, sm: 0 },
-              }}
-            >
-              {group.map((entity) => {
-                const deadlinesAll = deadlinesByEntity[entity.id] || []
-                const deadlinesActive = deadlinesAll.filter((d) => d.status === "active")
+        .map(([typeName, group]) => {
+          // filtrar por estado usando la misma lógica que antes
+          const entitiesToShow = group.filter((entity) => {
+            const deadlinesAll = deadlinesByEntity[entity.id] || []
+            const deadlinesActive = deadlinesAll.filter((d) => d.status === "active")
+            const deadlineWithStatus = deadlinesActive.map((d) => ({
+              ...d,
+              status: getDeadlineStatus(d),
+            }))
+            const entityStatus = getEntityStatus(
+              deadlineWithStatus.map((d) => d.status as unknown as DeadlineStatus)
+            )
+            return selectedStatus === "all" || entityStatus === selectedStatus
+          })
 
-                const deadlineWithStatus = deadlinesActive.map((d) => ({
-                  ...d,
-                  status: getDeadlineStatus(d),
-                }))
+          const currentView = viewModes[typeName] ?? "grid"
 
-                const entityStatus = getEntityStatus(
-                  deadlineWithStatus.map((d) => d.status as DeadlineStatus)
-                )
-                if (selectedStatus !== "all" && entityStatus !== selectedStatus) return null
+          return (
+            <Box key={typeName} sx={{ mb: 3 }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1, px: 1 }}>
+                <Typography variant="h6" sx={{ color: "primary.main" }}>
+                  {typeName}
+                </Typography>
+                <IconButton
+                  aria-label={`Cambiar a vista ${currentView === "grid" ? "lista" : "tarjetas"}`}
+                  title={`Cambiar a vista ${currentView === "grid" ? "lista" : "tarjetas"}`}
+                  onClick={() =>
+                    setViewModes((prev) => ({
+                      ...prev,
+                      [typeName]: prev[typeName] === "list" ? "grid" : "list",
+                    }))
+                  }
+                  sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                >
+                  {currentView === "list" ? <LayoutGrid size={18} /> : <List size={18} />}
+                </IconButton>
+              </Box>
 
-                return (
-                  <Box key={entity.id} sx={{ width: "100%" }}>
-                    <EntityCard
-                      entity={entity}
-                      deadlines={deadlinesAll} // EntityCard filtra activos
-                      fieldValues={fieldValuesByEntity[entity.id] || []}
-                      onClick={() => setOpenEntityId(entity.id)}
-                    />
-                  </Box>
-                )
-              })}
+              <EntityCollection
+                entities={entitiesToShow}
+                deadlinesByEntity={deadlinesByEntity}
+                fieldValuesByEntity={fieldValuesByEntity}
+                viewMode={currentView}
+                onOpenEntity={(id) => setOpenEntityId(id)}
+              />
             </Box>
-          </Box>
-        ))}
+          )
+        })}
 
       {/* Modal de ficha */}
       <Dialog
@@ -473,7 +485,7 @@ export default function HomePage() {
         maxWidth={isMobile ? "xs" : "sm"}
         fullWidth
       >
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <DialogTitle sx={{ display:"flex", justifyContent: "space-between", alignItems: "center" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <User size={20} />
             Ficha de entidad
