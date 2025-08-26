@@ -76,9 +76,10 @@ type DeadlineStatus = {
 }
 
 // ======= Config =======
-const DEADLINE_WARNING_DAYS = 30         // 🟠 Próximo a vencer (≤30 días)
-const DEADLINE_EARLY_WARNING_DAYS = 60   // 🟧 Aviso (≤60 días)
-const AVISO_HEX = "#ffb74d"              // color solicitado para “Aviso”
+const DEADLINE_WARNING_DAYS = 30         // 🟠 Próximo a vencer (≤30 días) = PRONTO
+const DEADLINE_EARLY_WARNING_DAYS = 60   // 🟧 Aviso (≤60 días) = AVISO
+const AVISO_HEX = "#fdd835"              // amarillo para “Aviso” (chips)
+const PRONTO_HEX = "#fb8c00"             // naranjo para “Pronto” (chips)
 
 // ======= Helpers UI =======
 const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
@@ -179,7 +180,6 @@ const StatusFilterBar: React.FC<{
 
   const primaryMain = theme.palette.primary.main
   const successMain = theme.palette.success.main
-  const warningMain = theme.palette.warning.main
   const errorMain = theme.palette.error.main
 
   return (
@@ -212,7 +212,7 @@ const StatusFilterBar: React.FC<{
       <Chip
         label="Pronto"
         icon={<AlertTriangle size={14} />}
-        sx={{ ...othersMobileSx, ...paletteChipSx(theme, warningMain, selected === "warning") }}
+        sx={{ ...othersMobileSx, ...paletteChipSx(theme, PRONTO_HEX, selected === "warning") }}
         {...commonProps("warning")}
       />
       <Chip
@@ -332,7 +332,7 @@ export default function HomePage() {
       variant = "destructive"
       icon = <XCircle size={16} />
     } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-      variant = "secondary" // 🟠 ≤30 días
+      variant = "secondary" // 🟠 ≤30 días (Pronto)
       icon = <AlertTriangle size={16} />
     } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
       variant = "warning" // 🟧 ≤60 días (Aviso)
