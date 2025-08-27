@@ -82,6 +82,7 @@ const AVISO_HEX = "#fdd835"              // amarillo para “Aviso” (chips)
 const PRONTO_HEX = "#fb8c00"             // naranjo para “Pronto” (chips)
 
 // ======= Helpers UI =======
+// (se mantiene para otras barras que quieras con wrap normal)
 const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
   <Box
     component="nav"
@@ -93,7 +94,7 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
       py: 0.25,
       px: { xs: 1, sm: 0 },
       scrollbarWidth: "thin",
-      flexWrap: { xs: "wrap", md: "nowrap" }, // compacto en mobile: puede cortar a 2 filas
+      flexWrap: { xs: "wrap", md: "nowrap" },
       rowGap: { xs: 0.5, md: 0 },
       mb: 0.75,
       justifyContent: { xs: "space-between", md: "flex-start" },
@@ -103,6 +104,35 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
   </Box>
 )
 
+// 🧩 Nueva: una línea con scroll (usada en Estados y Tipos)
+const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({ children, ariaLabel }) => {
+  const theme = useTheme()
+  return (
+    <Box
+      component="nav"
+      aria-label={ariaLabel}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+        flexWrap: { xs: "nowrap", sm: "wrap" },     // mobile: 1 línea; desktop: puede envolver
+        overflowX: { xs: "auto", sm: "visible" },   // mobile: scroll horizontal
+        px: 1,
+        py: 0.5,
+        WebkitOverflowScrolling: "touch",
+        scrollbarWidth: "thin",
+        "&::-webkit-scrollbar": { height: 6 },
+        "&::-webkit-scrollbar-thumb": {
+          backgroundColor: alpha(theme.palette.text.primary, 0.25),
+          borderRadius: 999,
+        },
+      }}
+    >
+      {children}
+    </Box>
+  )
+}
+
 // ======= Estilos consistentes de Chips =======
 function paletteChipSx(theme: any, main: string, selected: boolean) {
   const contrast = theme.palette.getContrastText(main)
@@ -111,23 +141,16 @@ function paletteChipSx(theme: any, main: string, selected: boolean) {
 
   return selected
     ? {
-        // Filled (seleccionado)
         bgcolor: main,
         color: contrast,
         "& .MuiChip-icon": { color: contrast },
-        "&:hover": {
-          bgcolor: hoverFilledBg,
-        },
+        "&:hover": { bgcolor: hoverFilledBg },
       }
     : {
-        // Outlined (no seleccionado)
         borderColor: main,
         color: main,
         "& .MuiChip-icon": { color: main },
-        "&:hover": {
-          bgcolor: hoverOutlinedBg, // no gris
-          borderColor: main,
-        },
+        "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main },
       }
 }
 
@@ -148,15 +171,13 @@ function avisoChipSx(theme: any, selected: boolean) {
         borderColor: main,
         color: main,
         "& .MuiChip-icon": { color: main },
-        "&:hover": {
-          bgcolor: hoverOutlinedBg,
-          borderColor: main,
-        },
+        "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main },
       }
 }
 
 type StatusKey = "all" | "good" | "early" | "warning" | "overdue"
 
+// ======= Barra de ESTADOS (1 línea mobile) =======
 const StatusFilterBar: React.FC<{
   selected: StatusKey
   onChange: (s: StatusKey) => void
@@ -164,64 +185,110 @@ const StatusFilterBar: React.FC<{
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
 
-  // 🟢 Mobile: "Todos" ocupa toda la fila; el resto a 1/2
-  const todosMobileSx = isMobile ? { px: 1.25, py: 0.5, flex: "1 1 100%" } : {}
-  const othersMobileSx = isMobile ? { px: 1, py: 0.25, flex: "1 1 48%" } : {}
-
   const variantFor = (active: boolean): ChipProps["variant"] => (active ? "filled" : "outlined")
-  const sizeFor = isMobile ? ("small" as const) : ("medium" as const)
+  const sizeFor: ChipProps["size"] = isMobile ? "small" : "medium"
 
-  const commonProps = (key: StatusKey) =>
-    ({
-      onClick: () => onChange(key),
-      size: sizeFor,
-      variant: variantFor(selected === key),
-    } satisfies Pick<ChipProps, "onClick" | "size" | "variant">)
+  const chipBaseSx = {
+    flex: "0 0 auto",
+    height: isMobile ? 28 : 32,
+    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600 },
+    "& .MuiChip-icon": { fontSize: isMobile ? 16 : 18, mr: 0.25 },
+  } as const
 
   const primaryMain = theme.palette.primary.main
   const successMain = theme.palette.success.main
   const errorMain = theme.palette.error.main
 
   return (
-    <HScroll gap={0.5}>
-      {/* TODOS: ancho completo en mobile + un pelín más de presencia */}
+    <OneLineScroll ariaLabel="Estados de vencimientos">
       <Chip
         label="Todos"
         icon={<Circle size={14} />}
-        sx={{
-          ...todosMobileSx,
-          ...paletteChipSx(theme, primaryMain, selected === "all"),
-          fontWeight: 700,
-        }}
-        size={isMobile ? "medium" : "medium"}
+        size={sizeFor}
         onClick={() => onChange("all")}
         variant={variantFor(selected === "all")}
+        sx={{
+          ...chipBaseSx,
+          ...paletteChipSx(theme, primaryMain, selected === "all"),
+          "& .MuiChip-label": { ...chipBaseSx["& .MuiChip-label"], fontWeight: 700 },
+        }}
       />
       <Chip
         label="Al día"
         icon={<CheckCircle size={14} />}
-        sx={{ ...othersMobileSx, ...paletteChipSx(theme, successMain, selected === "good") }}
-        {...commonProps("good")}
+        size={sizeFor}
+        onClick={() => onChange("good")}
+        variant={variantFor(selected === "good")}
+        sx={{ ...chipBaseSx, ...paletteChipSx(theme, successMain, selected === "good") }}
       />
       <Chip
         label="Aviso"
         icon={<Info size={14} />}
-        sx={{ ...othersMobileSx, ...avisoChipSx(theme, selected === "early") }}
-        {...commonProps("early")}
+        size={sizeFor}
+        onClick={() => onChange("early")}
+        variant={variantFor(selected === "early")}
+        sx={{ ...chipBaseSx, ...avisoChipSx(theme, selected === "early") }}
       />
       <Chip
         label="Pronto"
         icon={<AlertTriangle size={14} />}
-        sx={{ ...othersMobileSx, ...paletteChipSx(theme, PRONTO_HEX, selected === "warning") }}
-        {...commonProps("warning")}
+        size={sizeFor}
+        onClick={() => onChange("warning")}
+        variant={variantFor(selected === "warning")}
+        sx={{ ...chipBaseSx, ...paletteChipSx(theme, PRONTO_HEX, selected === "warning") }}
       />
       <Chip
         label="Vencidas"
         icon={<XCircle size={14} />}
-        sx={{ ...othersMobileSx, ...paletteChipSx(theme, errorMain, selected === "overdue") }}
-        {...commonProps("overdue")}
+        size={sizeFor}
+        onClick={() => onChange("overdue")}
+        variant={variantFor(selected === "overdue")}
+        sx={{ ...chipBaseSx, ...paletteChipSx(theme, errorMain, selected === "overdue") }}
       />
-    </HScroll>
+    </OneLineScroll>
+  )
+}
+
+// ======= Barra de TIPOS (mismo patrón: 1 línea mobile) =======
+const TypeFilterBar: React.FC<{
+  types: string[]
+  selectedType: string | null
+  onChange: (type: string | null) => void
+}> = ({ types, selectedType, onChange }) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const sizeFor: ChipProps["size"] = isMobile ? "small" : "medium"
+
+  const chipBaseSx = {
+    flex: "0 0 auto",
+    height: isMobile ? 28 : 32,
+    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600 },
+    "& .MuiChip-icon": { fontSize: isMobile ? 16 : 18, mr: 0.25 },
+  } as const
+
+  const onClickType = (type: string) => {
+    onChange(selectedType === type ? null : type)
+  }
+
+  return (
+    <OneLineScroll ariaLabel="Tipos de entidades">
+      {types.map((type) => {
+        const selected = selectedType === type
+        return (
+          <Chip
+            key={type}
+            label={type}
+            size={sizeFor}
+            onClick={() => onClickType(type)}
+            variant={selected ? "filled" : "outlined"}
+            sx={{
+              ...chipBaseSx,
+              ...paletteChipSx(theme, theme.palette.primary.main, selected),
+            }}
+          />
+        )
+      })}
+    </OneLineScroll>
   )
 }
 
@@ -236,7 +303,7 @@ export default function HomePage() {
   const [deadlinesByEntity, setDeadlinesByEntity] = useState<Record<string, Deadline[]>>({})
   const [fieldValuesByEntity, setFieldValuesByEntity] = useState<Record<string, FieldValue[]>>({})
   const [openEntityId, setOpenEntityId] = useState<string | null>(null)
-  const [viewModes, setViewModes] = useState<Record<string, "grid" | "list">>({}) // 👈 modo por tipo (key: typeName)
+  const [viewModes, setViewModes] = useState<Record<string, "grid" | "list">>({})
 
   useEffect(() => {
     fetch("/api/entities")
@@ -260,10 +327,8 @@ export default function HomePage() {
           const rawDeadlines: Deadline[] = await dRes.json()
           const fields: FieldValue[] = await fRes.json()
 
-          // Solo deadlines activos
           const activeDeadlines = (rawDeadlines || []).filter((d) => d.status === "active")
 
-          // uso actual (último registro)
           const { data: latestUsageRows, error: latestUsageErr } = await supabase
             .from("usage_logs")
             .select("value, date")
@@ -318,7 +383,6 @@ export default function HomePage() {
   }, [entities])
 
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
-    // Estado por FECHA para los filtros
     const today = new Date()
     const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
 
@@ -347,10 +411,7 @@ export default function HomePage() {
     }
   }
 
-  // Prioridad: overdue > warning(🟠) > early(🟧) > good
-  function getEntityStatus(
-    deadlines: DeadlineStatus[]
-  ): "good" | "early" | "warning" | "overdue" {
+  function getEntityStatus(deadlines: DeadlineStatus[]): "good" | "early" | "warning" | "overdue" {
     if (deadlines.some((d) => d.variant === "destructive")) return "overdue"
     if (deadlines.some((d) => d.variant === "secondary")) return "warning"
     if (deadlines.some((d) => d.variant === "warning")) return "early"
@@ -381,8 +442,8 @@ export default function HomePage() {
       sx={{
         mt: 0,
         width: "100%",
-        maxWidth: "100%", // usar máximo ancho en todos los modos
-        px: { xs: 1, sm: 2, md: 3 }, // leve respiro
+        maxWidth: "100%",
+        px: { xs: 1, sm: 2, md: 3 },
         mx: "auto",
       }}
     >
@@ -401,36 +462,20 @@ export default function HomePage() {
           px: 0,
         }}
       >
-        {/* Estado: compacta en mobile, colores normalizados y tipos seguros */}
+        {/* Estados: 1 línea con scroll en mobile */}
         <StatusFilterBar selected={selectedStatus} onChange={setSelectedStatus} />
 
-        {/* Tipos: wrap/scroll compacto con colores por defecto del tema */}
-        <HScroll gap={0.5}>
-          {allTypesSorted.map((type) => {
-            const variant: ChipProps["variant"] = selectedType === type ? "filled" : "outlined"
-            return (
-              <Chip
-                key={type}
-                label={type}
-                onClick={() => setSelectedType(type === selectedType ? null : type)}
-                variant={variant}
-                color={selectedType === type ? "primary" : "default"}
-                size={isMobile ? "small" : "medium"}
-                sx={
-                  selectedType === type
-                    ? paletteChipSx(theme, theme.palette.primary.main, true)
-                    : paletteChipSx(theme, theme.palette.primary.main, false)
-                }
-              />
-            )
-          })}
-        </HScroll>
+        {/* Tipos: MISMO patrón */}
+        <TypeFilterBar
+          types={allTypesSorted}
+          selectedType={selectedType}
+          onChange={setSelectedType}
+        />
       </Box>
 
       {Object.entries(grouped)
         .filter(([type]) => !selectedType || type === selectedType)
         .map(([typeName, group]) => {
-          // filtrar por estado usando la misma lógica que antes
           const entitiesToShow = group.filter((entity) => {
             const deadlinesAll = deadlinesByEntity[entity.id] || []
             const deadlinesActive = deadlinesAll.filter((d) => d.status === "active")
