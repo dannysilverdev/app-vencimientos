@@ -32,7 +32,7 @@ import { alpha } from "@mui/material/styles"
 import { supabase } from "@/lib/supabaseClient"
 import EntityCollection from "@/components/EntityCollection"
 
-// ======= Tipos =======
+// ===== Tipos =====
 type Entity = {
   id: string
   name: string
@@ -60,7 +60,7 @@ type Deadline = {
   next_due_date: string | null
   current_usage?: number
   baseline_usage?: number
-  status?: string // activo/inactivo
+  status?: string
   deadline_types: {
     name: string
     measure_by: string
@@ -75,44 +75,14 @@ type DeadlineStatus = {
   daysRemaining: number
 }
 
-// ======= Config =======
-const DEADLINE_WARNING_DAYS = 30         // 🟠 Próximo a vencer (≤30 días) = PRONTO
-const DEADLINE_EARLY_WARNING_DAYS = 60   // 🟧 Aviso (≤60 días) = AVISO
-const AVISO_HEX = "#fdd835"              // amarillo para “Aviso” (chips)
-const PRONTO_HEX = "#fb8c00"             // naranjo para “Pronto” (chips)
+// ===== Config =====
+const DEADLINE_WARNING_DAYS = 30
+const DEADLINE_EARLY_WARNING_DAYS = 60
+const AVISO_HEX = "#fdd835"
+const PRONTO_HEX = "#fb8c00"
 
-// ======= Helpers UI =======
-// Wrap con 2 líneas en mobile (lo dejamos para otras barras que no requieran 1 sola línea)
-const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
-  <Box
-    component="nav"
-    aria-label="Filtros"
-    sx={{
-      display: "flex",
-      gap,
-      overflowX: { xs: "visible", md: "visible" },
-      py: 0.25,
-      px: { xs: 1, sm: 0 },
-      scrollbarWidth: "thin",
-      flexWrap: { xs: "wrap", md: "nowrap" },
-      rowGap: { xs: 0.5, md: 0 },
-      mb: 0.75,
-      justifyContent: { xs: "space-between", md: "flex-start" },
-      minWidth: 0,
-      width: "100%",
-      maxWidth: "100%",
-      boxSizing: "border-box",
-    }}
-  >
-    {children}
-  </Box>
-)
-
-// 🧩 1 sola línea con scroll (mobile), sin expandir el ancho del layout
-const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({
-  children,
-  ariaLabel,
-}) => {
+// ===== Helpers =====
+const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({ children, ariaLabel }) => {
   const theme = useTheme()
   return (
     <Box
@@ -122,8 +92,8 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
         display: "flex",
         alignItems: "center",
         gap: 0.5,
-        flexWrap: { xs: "nowrap", sm: "wrap" },     // mobile: 1 línea
-        overflowX: { xs: "auto", sm: "visible" },   // mobile: scroll horizontal
+        flexWrap: { xs: "nowrap", sm: "wrap" }, // mobile: una sola línea
+        overflowX: { xs: "auto", sm: "visible" },
         px: 1,
         py: 0.5,
         WebkitOverflowScrolling: "touch",
@@ -136,8 +106,9 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
         width: "100%",
         maxWidth: "100%",
         minWidth: 0,
-        mx: "auto",
         boxSizing: "border-box",
+        overscrollBehaviorX: "contain",
+        contain: "layout paint",
       }}
     >
       {children}
@@ -145,90 +116,127 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
   )
 }
 
-// ======= Estilos consistentes de Chips =======
 function paletteChipSx(theme: any, main: string, selected: boolean) {
   const contrast = theme.palette.getContrastText(main)
   const hoverOutlinedBg = alpha(main, theme.palette.mode === "dark" ? 0.2 : 0.12)
   const hoverFilledBg = alpha(main, theme.palette.mode === "dark" ? 0.92 : 0.9)
-
   return selected
-    ? {
-        bgcolor: main,
-        color: contrast,
-        "& .MuiChip-icon": { color: contrast },
-        "&:hover": { bgcolor: hoverFilledBg },
-      }
-    : {
-        borderColor: main,
-        color: main,
-        "& .MuiChip-icon": { color: main },
-        "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main },
-      }
+    ? { bgcolor: main, color: contrast, "& .MuiChip-icon": { color: contrast }, "&:hover": { bgcolor: hoverFilledBg } }
+    : { borderColor: main, color: main, "& .MuiChip-icon": { color: main }, "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main } }
 }
-
 function avisoChipSx(theme: any, selected: boolean) {
   const main = AVISO_HEX
   const contrast = "rgba(0,0,0,0.87)"
   const hoverOutlinedBg = alpha(main, theme.palette.mode === "dark" ? 0.22 : 0.14)
   const hoverFilledBg = alpha(main, theme.palette.mode === "dark" ? 0.92 : 0.9)
-
   return selected
-    ? {
-        bgcolor: main,
-        color: contrast,
-        "& .MuiChip-icon": { color: contrast },
-        "&:hover": { bgcolor: hoverFilledBg },
-      }
-    : {
-        borderColor: main,
-        color: main,
-        "& .MuiChip-icon": { color: main },
-        "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main },
-      }
+    ? { bgcolor: main, color: contrast, "& .MuiChip-icon": { color: contrast }, "&:hover": { bgcolor: hoverFilledBg } }
+    : { borderColor: main, color: main, "& .MuiChip-icon": { color: main }, "&:hover": { bgcolor: hoverOutlinedBg, borderColor: main } }
 }
 
 type StatusKey = "all" | "good" | "early" | "warning" | "overdue"
 
-// ======= Barra de ESTADOS (1 línea mobile) =======
-const StatusFilterBar: React.FC<{
-  selected: StatusKey
-  onChange: (s: StatusKey) => void
-}> = ({ selected, onChange }) => {
+// ===== Barras de filtros =====
+
+// 👉 StatusFilterBar: icon-only en mobile, chips en desktop
+const StatusFilterBar: React.FC<{ selected: StatusKey; onChange: (s: StatusKey) => void }> = ({ selected, onChange }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-
-  const variantFor = (active: boolean): ChipProps["variant"] => (active ? "filled" : "outlined")
-  const sizeFor: ChipProps["size"] = isMobile ? "small" : "medium"
-
-  const chipBaseSx = {
-    flex: "0 0 auto",
-    height: isMobile ? 28 : 32,
-    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600 },
-    "& .MuiChip-icon": { fontSize: isMobile ? 16 : 18, mr: 0.25 },
-  } as const
 
   const primaryMain = theme.palette.primary.main
   const successMain = theme.palette.success.main
   const errorMain = theme.palette.error.main
+
+  // Mobile: botones redondos (solo íconos), target 44px
+  const iconFilterButtonSx = (main: string, active: boolean) => {
+    const contrast = theme.palette.getContrastText(main)
+    return active
+      ? {
+          bgcolor: main,
+          color: contrast,
+          border: `1px solid ${alpha(main, 0.25)}`,
+          "&:hover": { bgcolor: alpha(main, 0.9) },
+        }
+      : {
+          bgcolor: "transparent",
+          color: main,
+          border: `1px solid ${main}`,
+          "&:hover": { bgcolor: alpha(main, theme.palette.mode === "dark" ? 0.18 : 0.12) },
+        }
+  }
+
+  if (isMobile) {
+    const baseBtn = {
+      width: 44,
+      height: 44,
+      borderRadius: "50%",
+      flex: "0 0 auto",
+    } as const
+
+    return (
+      <OneLineScroll ariaLabel="Estados de vencimientos">
+        <IconButton
+          aria-label="Todos"
+          onClick={() => onChange("all")}
+          sx={{ ...baseBtn, ...iconFilterButtonSx(primaryMain, selected === "all") }}
+        >
+          <Circle size={20} />
+        </IconButton>
+        <IconButton
+          aria-label="Al día"
+          onClick={() => onChange("good")}
+          sx={{ ...baseBtn, ...iconFilterButtonSx(successMain, selected === "good") }}
+        >
+          <CheckCircle size={20} />
+        </IconButton>
+        <IconButton
+          aria-label="Aviso"
+          onClick={() => onChange("early")}
+          sx={{ ...baseBtn, ...iconFilterButtonSx(AVISO_HEX, selected === "early") }}
+        >
+          <Info size={20} />
+        </IconButton>
+        <IconButton
+          aria-label="Pronto"
+          onClick={() => onChange("warning")}
+          sx={{ ...baseBtn, ...iconFilterButtonSx(PRONTO_HEX, selected === "warning") }}
+        >
+          <AlertTriangle size={20} />
+        </IconButton>
+        <IconButton
+          aria-label="Vencidas"
+          onClick={() => onChange("overdue")}
+          sx={{ ...baseBtn, ...iconFilterButtonSx(errorMain, selected === "overdue") }}
+        >
+          <XCircle size={20} />
+        </IconButton>
+      </OneLineScroll>
+    )
+  }
+
+  // Desktop: chips con texto
+  const variantFor = (active: boolean): ChipProps["variant"] => (active ? "filled" : "outlined")
+  const chipBaseSx = {
+    flex: "0 0 auto",
+    height: 32,
+    "& .MuiChip-label": { px: 1.25, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" },
+    "& .MuiChip-icon": { fontSize: 18, mr: 0.25 },
+  } as const
 
   return (
     <OneLineScroll ariaLabel="Estados de vencimientos">
       <Chip
         label="Todos"
         icon={<Circle size={14} />}
-        size={sizeFor}
+        size="medium"
         onClick={() => onChange("all")}
         variant={variantFor(selected === "all")}
-        sx={{
-          ...chipBaseSx,
-          ...paletteChipSx(theme, primaryMain, selected === "all"),
-          "& .MuiChip-label": { ...chipBaseSx["& .MuiChip-label"], fontWeight: 700 },
-        }}
+        sx={{ ...chipBaseSx, ...paletteChipSx(theme, primaryMain, selected === "all"), "& .MuiChip-label": { fontWeight: 700 } }}
       />
       <Chip
         label="Al día"
         icon={<CheckCircle size={14} />}
-        size={sizeFor}
+        size="medium"
         onClick={() => onChange("good")}
         variant={variantFor(selected === "good")}
         sx={{ ...chipBaseSx, ...paletteChipSx(theme, successMain, selected === "good") }}
@@ -236,7 +244,7 @@ const StatusFilterBar: React.FC<{
       <Chip
         label="Aviso"
         icon={<Info size={14} />}
-        size={sizeFor}
+        size="medium"
         onClick={() => onChange("early")}
         variant={variantFor(selected === "early")}
         sx={{ ...chipBaseSx, ...avisoChipSx(theme, selected === "early") }}
@@ -244,7 +252,7 @@ const StatusFilterBar: React.FC<{
       <Chip
         label="Pronto"
         icon={<AlertTriangle size={14} />}
-        size={sizeFor}
+        size="medium"
         onClick={() => onChange("warning")}
         variant={variantFor(selected === "warning")}
         sx={{ ...chipBaseSx, ...paletteChipSx(theme, PRONTO_HEX, selected === "warning") }}
@@ -252,7 +260,7 @@ const StatusFilterBar: React.FC<{
       <Chip
         label="Vencidas"
         icon={<XCircle size={14} />}
-        size={sizeFor}
+        size="medium"
         onClick={() => onChange("overdue")}
         variant={variantFor(selected === "overdue")}
         sx={{ ...chipBaseSx, ...paletteChipSx(theme, errorMain, selected === "overdue") }}
@@ -261,23 +269,18 @@ const StatusFilterBar: React.FC<{
   )
 }
 
-// ======= Barra de TIPOS (mismo patrón 1 línea mobile) =======
-const TypeFilterBar: React.FC<{
-  types: string[]
-  selectedType: string | null
-  onChange: (type: string | null) => void
-}> = ({ types, selectedType, onChange }) => {
+const TypeFilterBar: React.FC<{ types: string[]; selectedType: string | null; onChange: (type: string | null) => void }> = ({
+  types, selectedType, onChange
+}) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const sizeFor: ChipProps["size"] = isMobile ? "small" : "medium"
-
   const chipBaseSx = {
     flex: "0 0 auto",
     height: isMobile ? 28 : 32,
-    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600, whiteSpace: "nowrap" },
+    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600, whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" },
     "& .MuiChip-icon": { fontSize: isMobile ? 16 : 18, mr: 0.25 },
   } as const
-
   const onClickType = (type: string) => onChange(selectedType === type ? null : type)
 
   return (
@@ -291,7 +294,7 @@ const TypeFilterBar: React.FC<{
             size={sizeFor}
             onClick={() => onClickType(type)}
             variant={selected ? "filled" : "outlined"}
-            sx={{ ...chipBaseSx, ...paletteChipSx(useTheme(), useTheme().palette.primary.main, selected) }}
+            sx={{ ...chipBaseSx, ...paletteChipSx(theme, theme.palette.primary.main, selected) }}
           />
         )
       })}
@@ -299,7 +302,7 @@ const TypeFilterBar: React.FC<{
   )
 }
 
-// ======= Página =======
+// ===== Página =====
 export default function HomePage() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
@@ -349,15 +352,14 @@ export default function HomePage() {
 
           for (const d of activeDeadlines) {
             if (d?.deadline_types?.measure_by === "usage" && d?.last_done) {
-              const { data: baselineRows, error: baselineErr } = await supabase
+              const { data: baselineRows } = await supabase
                 .from("usage_logs")
                 .select("value, date")
                 .eq("entity_id", e.id)
                 .lte("date", d.last_done)
                 .order("date", { ascending: false })
                 .limit(1)
-
-              const baselineUsage: number | undefined = baselineErr ? undefined : baselineRows?.[0]?.value ?? undefined
+              const baselineUsage = baselineRows?.[0]?.value ?? undefined
 
               enrichedDeadlines.push({
                 ...d,
@@ -384,38 +386,19 @@ export default function HomePage() {
       setFieldValuesByEntity(allFields)
     }
 
-    if (entities.length > 0) {
-      loadRelated()
-    }
+    if (entities.length > 0) loadRelated()
   }, [entities])
 
   function getDeadlineStatus(d: Deadline): DeadlineStatus {
     const today = new Date()
     const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-
-    const diffDays = dueDate
-      ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      : Infinity
+    const diffDays = dueDate ? Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : Infinity
     let variant: DeadlineStatus["variant"] = "default"
     let icon: React.ReactNode = <CheckCircle size={16} />
-
-    if (dueDate && diffDays < 0) {
-      variant = "destructive"
-      icon = <XCircle size={16} />
-    } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-      variant = "secondary" // 🟠 ≤30 días (Pronto)
-      icon = <AlertTriangle size={16} />
-    } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
-      variant = "warning" // 🟧 ≤60 días (Aviso)
-      icon = <Info size={16} />
-    }
-
-    return {
-      text: dueDate ? dueDate.toISOString().split("T")[0] : "Sin fecha",
-      variant,
-      icon,
-      daysRemaining: diffDays,
-    }
+    if (dueDate && diffDays < 0) { variant = "destructive"; icon = <XCircle size={16} /> }
+    else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) { variant = "secondary"; icon = <AlertTriangle size={16} /> }
+    else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) { variant = "warning"; icon = <Info size={16} /> }
+    return { text: dueDate ? dueDate.toISOString().split("T")[0] : "Sin fecha", variant, icon, daysRemaining: diffDays }
   }
 
   function getEntityStatus(deadlines: DeadlineStatus[]): "good" | "early" | "warning" | "overdue" {
@@ -449,11 +432,12 @@ export default function HomePage() {
       sx={{
         mt: 0,
         width: "100%",
-        maxWidth: "100vw",      // ✅ no mayor que el viewport
+        maxWidth: "100%", // 🔒 nunca más ancho que el contenedor
         px: { xs: 1, sm: 2, md: 3 },
         mx: "auto",
-        overflowX: "clip",      // ✅ corta cualquier desborde
+        overflowX: "hidden", // 🔒 corta cualquier desborde
         boxSizing: "border-box",
+        contain: "layout paint", // 🔒 aísla layout interno
       }}
     >
       {/* ===== Barra de filtros sticky ===== */}
@@ -469,18 +453,16 @@ export default function HomePage() {
           pb: 0.25,
           mb: 0.5,
           px: 0,
-          overflowX: "clip",    // ✅ evita que la barra empuje el ancho
+          minWidth: 0,
+          width: "100%",
+          maxWidth: "100%",
+          overflowX: "hidden", // 🔒 la barra no empuja el ancho
+          boxSizing: "border-box",
+          contain: "layout paint",
         }}
       >
-        {/* Estados: 1 línea con scroll en mobile */}
         <StatusFilterBar selected={selectedStatus} onChange={setSelectedStatus} />
-
-        {/* Tipos: mismo patrón */}
-        <TypeFilterBar
-          types={allTypesSorted}
-          selectedType={selectedType}
-          onChange={setSelectedType}
-        />
+        <TypeFilterBar types={allTypesSorted} selectedType={selectedType} onChange={setSelectedType} />
       </Box>
 
       {Object.entries(grouped)
@@ -488,27 +470,17 @@ export default function HomePage() {
         .map(([typeName, group]) => {
           const entitiesToShow = group.filter((entity) => {
             const deadlinesAll = deadlinesByEntity[entity.id] || []
-            const deadlinesActive = deadlinesAll.filter((d) => d.status === "active")
-            const deadlineWithStatus = deadlinesActive.map((d) => ({
-              ...d,
-              status: getDeadlineStatus(d),
-            }))
-            const entityStatus = getEntityStatus(
-              deadlineWithStatus.map((d) => d.status as unknown as DeadlineStatus)
-            )
+            const active = deadlinesAll.filter((d) => d.status === "active")
+            const withStatus = active.map((d) => ({ ...d, status: getDeadlineStatus(d) }))
+            const entityStatus = getEntityStatus(withStatus.map((d) => d.status as unknown as DeadlineStatus))
             return selectedStatus === "all" || entityStatus === selectedStatus
           })
 
           const currentView = viewModes[typeName] ?? "grid"
 
           return (
-            <Box key={typeName} sx={{ mb: 3 }}>
-              <Box
-                display="flex"
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1, px: 1 }}
-              >
+            <Box key={typeName} sx={{ mb: 3, minWidth: 0, width: "100%", maxWidth: "100%", overflowX: "hidden" }}>
+              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1, px: 1 }}>
                 <Typography variant="h6" sx={{ color: "primary.main" }}>
                   {typeName}
                 </Typography>
@@ -516,47 +488,37 @@ export default function HomePage() {
                   aria-label={`Cambiar a vista ${currentView === "grid" ? "lista" : "tarjetas"}`}
                   title={`Cambiar a vista ${currentView === "grid" ? "lista" : "tarjetas"}`}
                   onClick={() =>
-                    setViewModes((prev) => ({
-                      ...prev,
-                      [typeName]: prev[typeName] === "list" ? "grid" : "list",
-                    }))
+                    setViewModes((prev) => ({ ...prev, [typeName]: prev[typeName] === "list" ? "grid" : "list" }))
                   }
-                  sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2 }}
+                  sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, flex: "0 0 auto" }}
                 >
                   {currentView === "list" ? <LayoutGrid size={18} /> : <List size={18} />}
                 </IconButton>
               </Box>
 
-              <EntityCollection
-                entities={entitiesToShow}
-                deadlinesByEntity={deadlinesByEntity}
-                fieldValuesByEntity={fieldValuesByEntity}
-                viewMode={currentView}
-                onOpenEntity={(id) => setOpenEntityId(id)}
-              />
+              {/* 🔒 wrapper que evita overflow del contenido de la colección */}
+              <Box sx={{ minWidth: 0, width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+                <EntityCollection
+                  entities={entitiesToShow}
+                  deadlinesByEntity={deadlinesByEntity}
+                  fieldValuesByEntity={fieldValuesByEntity}
+                  viewMode={currentView}
+                  onOpenEntity={(id) => setOpenEntityId(id)}
+                />
+              </Box>
             </Box>
           )
         })}
 
       {/* Modal de ficha */}
-      <Dialog
-        open={!!openEntityId}
-        onClose={() => setOpenEntityId(null)}
-        maxWidth={isMobile ? "xs" : "sm"}
-        fullWidth
-      >
+      <Dialog open={!!openEntityId} onClose={() => setOpenEntityId(null)} maxWidth={isMobile ? "xs" : "sm"} fullWidth>
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <User size={20} />
             Ficha de entidad
           </Box>
           {openEntityId && (
-            <IconButton
-              href={`/entities/${openEntityId}/edit`}
-              component="a"
-              title="Editar entidad"
-              sx={{ p: 1.5 }}
-            >
+            <IconButton href={`/entities/${openEntityId}/edit`} component="a" title="Editar entidad" sx={{ p: 1.5 }}>
               <Pencil size={28} />
             </IconButton>
           )}
@@ -565,24 +527,14 @@ export default function HomePage() {
           {openEntity && (
             <Box display="flex" flexDirection="column" gap={3}>
               <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                <Typography
-                  variant="subtitle2"
-                  color="text.secondary"
-                  sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                >
+                <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Tag size={16} /> Tipo de entidad
                 </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {openEntity.entity_types?.name || "Sin tipo"}
-                </Typography>
+                <Typography variant="body2" fontWeight={500}>{openEntity.entity_types?.name || "Sin tipo"}</Typography>
               </Box>
               {openFields.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                  >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Info size={16} /> Información personalizada
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
@@ -599,11 +551,7 @@ export default function HomePage() {
               )}
               {openDeadlines.length > 0 && (
                 <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 2 }}>
-                  <Typography
-                    variant="subtitle2"
-                    color="text.secondary"
-                    sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                  >
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Calendar size={16} /> Vencimientos
                   </Typography>
                   <Box component="ul" sx={{ listStyle: "none", pl: 0, mt: 1 }}>
@@ -612,23 +560,13 @@ export default function HomePage() {
                         <Box fontSize={13} py={1} sx={{ borderBottom: "1px dashed #ccc" }}>
                           <Typography fontWeight={500}>{d.deadline_types.name}</Typography>
                           <Box display="flex" flexDirection="column" gap={0.5} mt={0.5}>
-                            <Typography variant="body2">
-                              Última realización: {d.last_done || "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              Fecha de vencimiento: {d.next_due_date || "—"}
-                            </Typography>
+                            <Typography variant="body2">Última realización: {d.last_done || "—"}</Typography>
+                            <Typography variant="body2">Fecha de vencimiento: {d.next_due_date || "—"}</Typography>
                             {d.deadline_types.measure_by === "usage" && (
                               <>
-                                <Typography variant="body2">
-                                  Frecuencia: {d.frequency} {d.frequency_unit}
-                                </Typography>
-                                <Typography variant="body2">
-                                  Promedio diario: {d.usage_daily_average ?? "—"}
-                                </Typography>
-                                <Typography variant="body2">
-                                  Uso actual: {typeof d.current_usage === "number" ? d.current_usage : "—"}
-                                </Typography>
+                                <Typography variant="body2">Frecuencia: {d.frequency} {d.frequency_unit}</Typography>
+                                <Typography variant="body2">Promedio diario: {d.usage_daily_average ?? "—"}</Typography>
+                                <Typography variant="body2">Uso actual: {typeof d.current_usage === "number" ? d.current_usage : "—"}</Typography>
                               </>
                             )}
                           </Box>
