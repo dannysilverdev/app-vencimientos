@@ -26,7 +26,7 @@ import {
   Tag,
   User,
   LayoutGrid,
-  List
+  List,
 } from "lucide-react"
 import { alpha } from "@mui/material/styles"
 import { supabase } from "@/lib/supabaseClient"
@@ -82,7 +82,7 @@ const AVISO_HEX = "#fdd835"              // amarillo para “Aviso” (chips)
 const PRONTO_HEX = "#fb8c00"             // naranjo para “Pronto” (chips)
 
 // ======= Helpers UI =======
-// (se mantiene para otras barras que quieras con wrap normal)
+// Wrap con 2 líneas en mobile (lo dejamos para otras barras que no requieran 1 sola línea)
 const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children, gap = 0.5 }) => (
   <Box
     component="nav"
@@ -98,14 +98,21 @@ const HScroll: React.FC<React.PropsWithChildren<{ gap?: number }>> = ({ children
       rowGap: { xs: 0.5, md: 0 },
       mb: 0.75,
       justifyContent: { xs: "space-between", md: "flex-start" },
+      minWidth: 0,
+      width: "100%",
+      maxWidth: "100%",
+      boxSizing: "border-box",
     }}
   >
     {children}
   </Box>
 )
 
-// 🧩 Nueva: una línea con scroll (usada en Estados y Tipos)
-const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({ children, ariaLabel }) => {
+// 🧩 1 sola línea con scroll (mobile), sin expandir el ancho del layout
+const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({
+  children,
+  ariaLabel,
+}) => {
   const theme = useTheme()
   return (
     <Box
@@ -115,7 +122,7 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
         display: "flex",
         alignItems: "center",
         gap: 0.5,
-        flexWrap: { xs: "nowrap", sm: "wrap" },     // mobile: 1 línea; desktop: puede envolver
+        flexWrap: { xs: "nowrap", sm: "wrap" },     // mobile: 1 línea
         overflowX: { xs: "auto", sm: "visible" },   // mobile: scroll horizontal
         px: 1,
         py: 0.5,
@@ -126,6 +133,11 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
           backgroundColor: alpha(theme.palette.text.primary, 0.25),
           borderRadius: 999,
         },
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        mx: "auto",
+        boxSizing: "border-box",
       }}
     >
       {children}
@@ -249,7 +261,7 @@ const StatusFilterBar: React.FC<{
   )
 }
 
-// ======= Barra de TIPOS (mismo patrón: 1 línea mobile) =======
+// ======= Barra de TIPOS (mismo patrón 1 línea mobile) =======
 const TypeFilterBar: React.FC<{
   types: string[]
   selectedType: string | null
@@ -262,13 +274,11 @@ const TypeFilterBar: React.FC<{
   const chipBaseSx = {
     flex: "0 0 auto",
     height: isMobile ? 28 : 32,
-    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600 },
+    "& .MuiChip-label": { px: isMobile ? 1 : 1.25, fontSize: isMobile ? 12 : 13, fontWeight: 600, whiteSpace: "nowrap" },
     "& .MuiChip-icon": { fontSize: isMobile ? 16 : 18, mr: 0.25 },
   } as const
 
-  const onClickType = (type: string) => {
-    onChange(selectedType === type ? null : type)
-  }
+  const onClickType = (type: string) => onChange(selectedType === type ? null : type)
 
   return (
     <OneLineScroll ariaLabel="Tipos de entidades">
@@ -281,10 +291,7 @@ const TypeFilterBar: React.FC<{
             size={sizeFor}
             onClick={() => onClickType(type)}
             variant={selected ? "filled" : "outlined"}
-            sx={{
-              ...chipBaseSx,
-              ...paletteChipSx(theme, theme.palette.primary.main, selected),
-            }}
+            sx={{ ...chipBaseSx, ...paletteChipSx(useTheme(), useTheme().palette.primary.main, selected) }}
           />
         )
       })}
@@ -442,9 +449,11 @@ export default function HomePage() {
       sx={{
         mt: 0,
         width: "100%",
-        maxWidth: "100%",
+        maxWidth: "100vw",      // ✅ no mayor que el viewport
         px: { xs: 1, sm: 2, md: 3 },
         mx: "auto",
+        overflowX: "clip",      // ✅ corta cualquier desborde
+        boxSizing: "border-box",
       }}
     >
       {/* ===== Barra de filtros sticky ===== */}
@@ -460,12 +469,13 @@ export default function HomePage() {
           pb: 0.25,
           mb: 0.5,
           px: 0,
+          overflowX: "clip",    // ✅ evita que la barra empuje el ancho
         }}
       >
         {/* Estados: 1 línea con scroll en mobile */}
         <StatusFilterBar selected={selectedStatus} onChange={setSelectedStatus} />
 
-        {/* Tipos: MISMO patrón */}
+        {/* Tipos: mismo patrón */}
         <TypeFilterBar
           types={allTypesSorted}
           selectedType={selectedType}
@@ -493,7 +503,12 @@ export default function HomePage() {
 
           return (
             <Box key={typeName} sx={{ mb: 3 }}>
-              <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1, px: 1 }}>
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mb: 1, px: 1 }}
+              >
                 <Typography variant="h6" sx={{ color: "primary.main" }}>
                   {typeName}
                 </Typography>
@@ -530,7 +545,7 @@ export default function HomePage() {
         maxWidth={isMobile ? "xs" : "sm"}
         fullWidth
       >
-        <DialogTitle sx={{ display:"flex", justifyContent: "space-between", alignItems: "center" }}>
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <User size={20} />
             Ficha de entidad
@@ -557,7 +572,7 @@ export default function HomePage() {
                 >
                   <Tag size={16} /> Tipo de entidad
                 </Typography>
-                <Typography variant="body2" fontWeight="500">
+                <Typography variant="body2" fontWeight={500}>
                   {openEntity.entity_types?.name || "Sin tipo"}
                 </Typography>
               </Box>
@@ -612,8 +627,7 @@ export default function HomePage() {
                                   Promedio diario: {d.usage_daily_average ?? "—"}
                                 </Typography>
                                 <Typography variant="body2">
-                                  Uso actual:{" "}
-                                  {typeof d.current_usage === "number" ? d.current_usage : "—"}
+                                  Uso actual: {typeof d.current_usage === "number" ? d.current_usage : "—"}
                                 </Typography>
                               </>
                             )}
