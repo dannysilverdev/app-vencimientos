@@ -78,8 +78,8 @@ type DeadlineStatus = {
 // ===== Config =====
 const DEADLINE_WARNING_DAYS = 30
 const DEADLINE_EARLY_WARNING_DAYS = 60
-const AVISO_HEX = "#fdd835"
-const PRONTO_HEX = "#fb8c00"
+const AVISO_HEX = "#fdd835"   // Aviso (amarillo)
+const PRONTO_HEX = "#fb8c00"  // Pronto (naranjo)
 
 // ===== Helpers =====
 const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = ({ children, ariaLabel }) => {
@@ -108,7 +108,7 @@ const OneLineScroll: React.FC<React.PropsWithChildren<{ ariaLabel: string }>> = 
         minWidth: 0,
         boxSizing: "border-box",
         overscrollBehaviorX: "contain",
-        contain: "layout paint",
+        contain: "paint",
       }}
     >
       {children}
@@ -138,7 +138,7 @@ type StatusKey = "all" | "good" | "early" | "warning" | "overdue"
 
 // ===== Barras de filtros =====
 
-// 👉 StatusFilterBar: icon-only en mobile, chips en desktop
+// 👉 StatusFilterBar: icon-only en mobile (SIEMPRE rellenados), chips en desktop
 const StatusFilterBar: React.FC<{ selected: StatusKey; onChange: (s: StatusKey) => void }> = ({ selected, onChange }) => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
@@ -147,68 +147,51 @@ const StatusFilterBar: React.FC<{ selected: StatusKey; onChange: (s: StatusKey) 
   const successMain = theme.palette.success.main
   const errorMain = theme.palette.error.main
 
-  // Mobile: botones redondos (solo íconos), target 44px
-  const iconFilterButtonSx = (main: string, active: boolean) => {
+  // Mobile: botones circulares SIEMPRE con relleno (mejor contraste)
+  const filledIconButtonSx = (main: string, active: boolean) => {
     const contrast = theme.palette.getContrastText(main)
-    return active
-      ? {
-          bgcolor: main,
-          color: contrast,
-          border: `1px solid ${alpha(main, 0.25)}`,
-          "&:hover": { bgcolor: alpha(main, 0.9) },
-        }
-      : {
-          bgcolor: "transparent",
-          color: main,
-          border: `1px solid ${main}`,
-          "&:hover": { bgcolor: alpha(main, theme.palette.mode === "dark" ? 0.18 : 0.12) },
-        }
+    return {
+      bgcolor: active ? main : alpha(main, 0.22),
+      color: active ? contrast : main,
+      border: `1px solid ${alpha(main, 0.35)}`,
+      boxShadow: active ? `0 0 0 2px ${alpha(main, 0.35)}` : "none",
+      transition: "background-color .2s ease, box-shadow .2s ease, transform .1s ease",
+      "&:hover": { bgcolor: active ? alpha(main, 0.9) : alpha(main, 0.3), transform: "translateY(-1px)" },
+      "&:active": { transform: "translateY(0)" },
+    } as const
   }
 
   if (isMobile) {
     const baseBtn = {
-      width: 44,
-      height: 44,
+      width: 52,
+      height: 52,
       borderRadius: "50%",
       flex: "0 0 auto",
     } as const
 
+    const iconSize = 24
+
     return (
       <OneLineScroll ariaLabel="Estados de vencimientos">
-        <IconButton
-          aria-label="Todos"
-          onClick={() => onChange("all")}
-          sx={{ ...baseBtn, ...iconFilterButtonSx(primaryMain, selected === "all") }}
-        >
-          <Circle size={20} />
+        <IconButton aria-label="Todos" onClick={() => onChange("all")}
+          sx={{ ...baseBtn, ...filledIconButtonSx(primaryMain, selected === "all") }}>
+          <Circle size={iconSize} />
         </IconButton>
-        <IconButton
-          aria-label="Al día"
-          onClick={() => onChange("good")}
-          sx={{ ...baseBtn, ...iconFilterButtonSx(successMain, selected === "good") }}
-        >
-          <CheckCircle size={20} />
+        <IconButton aria-label="Al día" onClick={() => onChange("good")}
+          sx={{ ...baseBtn, ...filledIconButtonSx(successMain, selected === "good") }}>
+          <CheckCircle size={iconSize} />
         </IconButton>
-        <IconButton
-          aria-label="Aviso"
-          onClick={() => onChange("early")}
-          sx={{ ...baseBtn, ...iconFilterButtonSx(AVISO_HEX, selected === "early") }}
-        >
-          <Info size={20} />
+        <IconButton aria-label="Aviso" onClick={() => onChange("early")}
+          sx={{ ...baseBtn, ...filledIconButtonSx(AVISO_HEX, selected === "early") }}>
+          <Info size={iconSize} />
         </IconButton>
-        <IconButton
-          aria-label="Pronto"
-          onClick={() => onChange("warning")}
-          sx={{ ...baseBtn, ...iconFilterButtonSx(PRONTO_HEX, selected === "warning") }}
-        >
-          <AlertTriangle size={20} />
+        <IconButton aria-label="Pronto" onClick={() => onChange("warning")}
+          sx={{ ...baseBtn, ...filledIconButtonSx(PRONTO_HEX, selected === "warning") }}>
+          <AlertTriangle size={iconSize} />
         </IconButton>
-        <IconButton
-          aria-label="Vencidas"
-          onClick={() => onChange("overdue")}
-          sx={{ ...baseBtn, ...iconFilterButtonSx(errorMain, selected === "overdue") }}
-        >
-          <XCircle size={20} />
+        <IconButton aria-label="Vencidas" onClick={() => onChange("overdue")}
+          sx={{ ...baseBtn, ...filledIconButtonSx(errorMain, selected === "overdue") }}>
+          <XCircle size={iconSize} />
         </IconButton>
       </OneLineScroll>
     )
@@ -437,7 +420,7 @@ export default function HomePage() {
         mx: "auto",
         overflowX: "hidden", // 🔒 corta cualquier desborde
         boxSizing: "border-box",
-        contain: "layout paint", // 🔒 aísla layout interno
+        contain: "paint", // 🔒 aísla layout interno
       }}
     >
       {/* ===== Barra de filtros sticky ===== */}
@@ -458,7 +441,7 @@ export default function HomePage() {
           maxWidth: "100%",
           overflowX: "hidden", // 🔒 la barra no empuja el ancho
           boxSizing: "border-box",
-          contain: "layout paint",
+          contain: "paint",
         }}
       >
         <StatusFilterBar selected={selectedStatus} onChange={setSelectedStatus} />
