@@ -5,29 +5,20 @@ import type React from "react"
 import { useMemo, useState } from "react"
 import { Box, Typography, useTheme, useMediaQuery } from "@mui/material"
 import { alpha } from "@mui/material/styles"
-import { AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp, Info } from "lucide-react"
+import { ChevronDown, ChevronUp } from "lucide-react"
+
+import {
+  type Deadline,
+  type DeadlineStatus,
+  clamp01,
+  getDeadlineStatus,
+  colorForVariant,
+} from "@/utils/deadlines"
 
 type Entity = {
   id: string
   name: string
   type_id: string
-}
-
-type Deadline = {
-  id: string
-  last_done: string
-  frequency: number
-  frequency_unit: string
-  usage_daily_average: number | null
-  next_due_date: string | null
-  current_usage?: number
-  baseline_usage?: number
-  status?: string
-  deadline_types: {
-    name: string
-    measure_by: string
-    unit: string | null
-  }
 }
 
 type EntityField = {
@@ -44,172 +35,6 @@ type FieldValue = {
   entity_fields?: EntityField | null
 }
 
-type DeadlineStatus = {
-  color: string
-  text: string
-  variant: "default" | "warning" | "secondary" | "destructive"
-  icon: React.ReactNode
-  daysRemaining: number
-  label: string
-  unit?: string
-  progress: number
-  currentUsage?: number
-  thresholdUsage?: number
-  elapsedDays?: number
-  totalDays?: number
-}
-
-const WARNING_PROGRESS = 0.85            // “Próximo a vencer” (uso)
-const EARLY_WARNING_PROGRESS = 0.7       // “Aviso” (uso)
-const DEADLINE_WARNING_DAYS = 30         // “Próximo a vencer” (fecha)
-const DEADLINE_EARLY_WARNING_DAYS = 60   // “Aviso” (fecha)
-const MS_PER_DAY = 1000 * 60 * 60 * 24
-
-function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n))
-}
-function daysBetween(a: Date, b: Date) {
-  return Math.ceil((a.getTime() - b.getTime()) / MS_PER_DAY)
-}
-function formatDateISO(d: Date) {
-  return d.toISOString().split("T")[0]
-}
-
-function colorForVariant(variant: DeadlineStatus["variant"], theme: any) {
-  switch (variant) {
-    case "destructive":
-      return theme.palette.error.main
-    case "secondary":
-      return theme.palette.warning.main
-    case "warning":
-      // AVISO: color fijo solicitado
-      return "#ffb74d"
-    default:
-      return theme.palette.success.main
-  }
-}
-
-function getDeadlineStatus(d: Deadline): DeadlineStatus {
-  const today = new Date()
-
-  if (d.deadline_types.measure_by === "usage") {
-    const unit = d.deadline_types.unit || d.frequency_unit || ""
-    const hasCurrent = typeof d.current_usage === "number"
-    const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
-    const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
-    const current = hasCurrent ? d.current_usage! : Number.NaN
-
-    if (!hasCurrent || !hasFreq) {
-      return {
-        text: "Sin fecha",
-        variant: "default",
-        icon: <CheckCircle size={16} />,
-        daysRemaining: Number.POSITIVE_INFINITY,
-        label: d.deadline_types.name,
-        color: "",
-        progress: 0,
-        currentUsage: hasCurrent ? current : undefined,
-        thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
-        unit,
-      }
-    }
-
-    const effectiveUsage = Math.max(0, current - baseline)
-    const progress = clamp01(effectiveUsage / d.frequency)
-
-    let text = "Sin fecha"
-    let daysRemaining = Number.POSITIVE_INFINITY
-    const avg = typeof d.usage_daily_average === "number" ? d.usage_daily_average : 0
-
-    if (avg > 0) {
-      const remainingUsage = Math.max(0, d.frequency - effectiveUsage)
-      const days = Math.ceil(remainingUsage / avg)
-      daysRemaining = days
-      const dueDate = new Date(today)
-      dueDate.setDate(today.getDate() + days)
-      text = formatDateISO(dueDate)
-    }
-
-    let variant: DeadlineStatus["variant"] = "default"
-    let icon: React.ReactNode = <CheckCircle size={16} />
-
-    if (progress >= 1) {
-      variant = "destructive"
-      icon = <XCircle size={16} />
-    } else if (progress >= WARNING_PROGRESS) {
-      variant = "secondary"
-      icon = <AlertTriangle size={16} />
-    } else if (progress >= EARLY_WARNING_PROGRESS) {
-      variant = "warning"
-      icon = <Info size={16} />
-    }
-
-    const thresholdUsage = Math.round((baseline + d.frequency) * 100) / 100
-    const currentRounded = Math.round(current * 100) / 100
-
-    return {
-      text,
-      variant,
-      icon,
-      daysRemaining,
-      label: d.deadline_types.name,
-      unit,
-      color: variant === "warning" ? "#ffb74d" : "", // AVISO color fijo
-      progress,
-      currentUsage: currentRounded,
-      thresholdUsage,
-    }
-  }
-
-  const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-  const lastDone = d.last_done ? new Date(d.last_done) : null
-  const diffDays = dueDate ? daysBetween(dueDate, today) : Number.POSITIVE_INFINITY
-
-  let variant: DeadlineStatus["variant"] = "default"
-  let icon: React.ReactNode = <CheckCircle size={16} />
-
-  if (dueDate && diffDays < 0) {
-    variant = "destructive"
-    icon = <XCircle size={16} />
-  } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-    variant = "secondary"
-    icon = <AlertTriangle size={16} />
-  } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
-    variant = "warning"
-    icon = <Info size={16} />
-  }
-
-  let progress = 0
-  let elapsedDays: number | undefined = undefined
-  let totalDays: number | undefined = undefined
-
-  if (lastDone && dueDate) {
-    const total = Math.max(1, daysBetween(dueDate, lastDone))
-    const elapsed = Math.max(0, Math.min(total, daysBetween(new Date(), lastDone)))
-    totalDays = total
-    elapsedDays = Math.max(0, Math.min(total, elapsed))
-    progress = clamp01(elapsed / total)
-  } else if (dueDate) {
-    if (diffDays <= 0) progress = 1
-    else progress = clamp01((DEADLINE_WARNING_DAYS - diffDays) / DEADLINE_WARNING_DAYS)
-  } else {
-    progress = 0
-  }
-
-  return {
-    text: dueDate ? formatDateISO(dueDate) : "Sin fecha",
-    variant,
-    icon,
-    daysRemaining: diffDays,
-    label: d.deadline_types.name,
-    unit: d.deadline_types.unit || d.frequency_unit || undefined,
-    color: variant === "warning" ? "#ffb74d" : "",
-    progress,
-    elapsedDays,
-    totalDays,
-  }
-}
-
 type Props = {
   entity: Entity
   deadlines: Deadline[]
@@ -220,24 +45,24 @@ type Props = {
 export default function EntityCard({ entity, deadlines, fieldValues = [], onClick }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-  // expanded = false (compacto) por defecto → solo barras + etiqueta a la izquierda
   const [expanded, setExpanded] = useState(false)
 
-  // Personalización por entidad (chips): se mantiene EXACTAMENTE igual que antes
+  // Custom fields visibles (exactamente como en tarjeta)
   const chips = useMemo(
     () => fieldValues.filter((f) => f.entity_fields?.show_in_card && f.value?.trim()),
-    [fieldValues],
+    [fieldValues]
   )
   const visibleChips = chips.slice(0, isMobile ? 4 : 6)
   const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
-  const sorted = useMemo(
+  // Deadlines ordenados (misma lógica/colores que el helper compartido)
+  const sorted = useMemo<DeadlineStatus[]>(
     () =>
       deadlines
         .filter((d) => d.status === "active")
         .map(getDeadlineStatus)
         .sort((a, b) => a.daysRemaining - b.daysRemaining),
-    [deadlines],
+    [deadlines]
   )
 
   const surface =
@@ -246,7 +71,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       : `linear-gradient(145deg, ${alpha("#fff", 0.9)}, ${alpha("#fff", 0.7)})`
 
   const border = theme.palette.mode === "dark" ? alpha("#fff", 0.12) : alpha("#000", 0.06)
-
   const hoverBg =
     theme.palette.mode === "dark"
       ? `linear-gradient(145deg, ${alpha("#fff", 0.08)}, ${alpha("#fff", 0.04)})`
@@ -298,7 +122,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         position: "relative",
       }}
     >
-      {/* Botón flotante: se mantiene, por defecto chevron-down; al presionar muestra TODO */}
+      {/* Botón flotante para expandir/contraer detalles de cada deadline */}
       {sorted.length > 0 && (
         <Box
           onClick={(e) => {
@@ -347,13 +171,12 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
             wordBreak: "break-word",
             color: theme.palette.text.primary,
             fontSize: isMobile ? "1.1rem" : "1.25rem",
-            pr: 5,
+            pr: 5, // espacio para el botón flotante
           }}
         >
           {entity.name}
         </Typography>
 
-        {/* INFO PERSONALIZADA: NO SE TOCA. SIEMPRE visible si existe */}
         {chips.length > 0 && (
           <Typography
             variant="body2"
@@ -378,7 +201,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           display: "flex",
           flexDirection: "column",
           gap: isMobile ? 0.5 : 0.75,
-          flex: 1,
         }}
       >
         {sorted.map((d, i) => (
@@ -395,7 +217,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               transition: "all 0.2s ease",
             }}
           >
-            {/* Expandido: título + icono */}
+            {/* Título + ícono (solo expandido) */}
             {expanded && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
@@ -415,9 +237,8 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               </Box>
             )}
 
-            {/* Barra + (compacto: etiqueta a la izquierda; expandido: porcentaje a la derecha) */}
+            {/* Compacto: etiqueta + barra  /  Expandido: barra + porcentaje */}
             {!expanded ? (
-              // MODO COMPACTO: etiqueta (color según estado) + barra
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography
                   variant="caption"
@@ -426,7 +247,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                     flexBasis: "38%",
                     flexGrow: 0,
                     flexShrink: 1,
-                    color: colorFor(d.variant), // color igual al estado
+                    color: colorFor(d.variant),
                     fontWeight: 600,
                     letterSpacing: 0.1,
                     minWidth: 0,
@@ -485,7 +306,6 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                 </Box>
               </Box>
             ) : (
-              // MODO EXPANDIDO: barra + porcentaje
               <Box
                 aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
                 role="progressbar"
@@ -551,7 +371,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               </Box>
             )}
 
-            {/* Detalles: solo si expandido */}
+            {/* Detalles (solo expandido) */}
             {expanded && (
               <>
                 <Typography

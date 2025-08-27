@@ -2,14 +2,15 @@
 "use client"
 
 import React from "react"
-import { Box } from "@mui/material"
-import EntityCard from "@/components/EntityCard"
-import EntityListItem from "@/components/EntityListItem"
+import { Box, useMediaQuery, useTheme } from "@mui/material"
+import EntityCard from "./EntityCard"
+import EntityListItem from "./EntityListItem"
 
 type Entity = {
   id: string
   name: string
   type_id: string
+  entity_types?: { name: string }
 }
 
 type FieldValue = {
@@ -20,6 +21,7 @@ type FieldValue = {
     name: string
     field_type: string
     entity_type_id: string
+    show_in_card?: boolean
   }
 }
 
@@ -45,7 +47,7 @@ type Props = {
   deadlinesByEntity: Record<string, Deadline[]>
   fieldValuesByEntity: Record<string, FieldValue[]>
   viewMode: "grid" | "list"
-  onOpenEntity: (id: string) => void
+  onOpenEntity?: (id: string) => void
 }
 
 export default function EntityCollection({
@@ -53,59 +55,73 @@ export default function EntityCollection({
   deadlinesByEntity,
   fieldValuesByEntity,
   viewMode,
-  onOpenEntity
+  onOpenEntity,
 }: Props) {
-  if (viewMode === "list") {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+
+  if (viewMode === "grid") {
     return (
-      <Box display="flex" flexDirection="column" gap={1}>
-        {entities.map((entity) => {
-          const deadlinesAll = deadlinesByEntity[entity.id] || []
-          const fieldValues = fieldValuesByEntity[entity.id] || []
-          return (
-            <EntityListItem
-              key={entity.id}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            md: "repeat(3, minmax(0, 1fr))",
+            lg: "repeat(4, minmax(0, 1fr))",
+          },
+          gap: { xs: 1, sm: 1.5, md: 2 },
+          alignItems: "start",
+          justifyItems: "stretch",
+          width: "100%",
+          maxWidth: "100%",
+          overflowX: "hidden",
+        }}
+      >
+        {entities.map((entity) => (
+          <Box key={entity.id} sx={{ width: "100%", minWidth: 0 }}>
+            <EntityCard
               entity={entity}
-              deadlines={deadlinesAll}
-              fieldValues={fieldValues}
-              onClick={() => onOpenEntity(entity.id)}
+              deadlines={deadlinesByEntity[entity.id] || []}
+              fieldValues={fieldValuesByEntity[entity.id] || []}
+              onClick={() => onOpenEntity?.(entity.id)}
             />
-          )
-        })}
+          </Box>
+        ))}
       </Box>
     )
   }
 
-  // grid (tarjetas)
+  // LISTA (encaje 1:1 con tarjetas)
   return (
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "repeat(2, minmax(0, 1fr))",
-          md: "repeat(3, minmax(0, 1fr))",
-          lg: "repeat(4, minmax(0, 1fr))",
-        },
-        gap: { xs: 1, sm: 1.5, md: 2 },
-        alignItems: "start",
-        justifyItems: "stretch",
-        px: { xs: 0, sm: 0 },
+        gridTemplateColumns: "minmax(0, 1fr)", // evita desbordes
+        gap: { xs: 0.75, md: 1 },
+        width: "100%",
+        maxWidth: "100%",
+        overflowX: "hidden",
       }}
     >
-      {entities.map((entity) => {
-        const deadlinesAll = deadlinesByEntity[entity.id] || []
-        const fieldValues = fieldValuesByEntity[entity.id] || []
-        return (
-          <Box key={entity.id} sx={{ width: "100%" }}>
-            <EntityCard
-              entity={entity}
-              deadlines={deadlinesAll} // EntityCard filtra activos
-              fieldValues={fieldValues}
-              onClick={() => onOpenEntity(entity.id)}
-            />
-          </Box>
-        )
-      })}
+      {entities.map((entity) => (
+        <Box
+          key={entity.id}
+          sx={{
+            width: "100%",
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+          <EntityListItem
+            entity={entity}
+            deadlines={deadlinesByEntity[entity.id] || []}
+            fieldValues={fieldValuesByEntity[entity.id] || []}
+            onClick={() => onOpenEntity?.(entity.id)}
+          />
+        </Box>
+      ))}
     </Box>
   )
 }

@@ -4,7 +4,15 @@
 import React, { useMemo, useState } from "react"
 import { Box, Typography, IconButton, useTheme, useMediaQuery } from "@mui/material"
 import { alpha } from "@mui/material/styles"
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react"
+import { ChevronDown, ChevronUp } from "lucide-react"
+import {
+  type Deadline,
+  type DeadlineStatus,
+  clamp01,
+  getDeadlineStatus,
+  colorForVariant,
+  labelForVariant,
+} from "@/utils/deadlines"
 
 type Entity = {
   id: string
@@ -26,23 +34,6 @@ type FieldValue = {
   }
 }
 
-type Deadline = {
-  id: string
-  last_done: string
-  frequency: number
-  frequency_unit: string
-  usage_daily_average: number | null
-  next_due_date: string | null
-  current_usage?: number
-  baseline_usage?: number
-  status?: string
-  deadline_types: {
-    name: string
-    measure_by: string
-    unit: string | null
-  }
-}
-
 type Props = {
   entity: Entity
   deadlines: Deadline[]
@@ -50,213 +41,37 @@ type Props = {
   onClick?: () => void
 }
 
-// ======= Config (idéntica a EntityCard) =======
-const WARNING_PROGRESS = 0.85            // “Próximo a vencer” (uso)
-const EARLY_WARNING_PROGRESS = 0.7       // “Aviso” (uso)
-const DEADLINE_WARNING_DAYS = 30         // “Pronto” (fecha)
-const DEADLINE_EARLY_WARNING_DAYS = 60   // “Aviso” (fecha)
-const MS_PER_DAY = 1000 * 60 * 60 * 24
-
-const PRONTO_HEX = "#fb8c00"             // naranjo para puntos (≤30 días)
-const AVISO_HEX  = "#fdd835"             // amarillo para puntos (≤60 días)
-
-function clamp01(n: number) { return Math.max(0, Math.min(1, n)) }
-function daysBetween(a: Date, b: Date) { return Math.ceil((a.getTime() - b.getTime()) / MS_PER_DAY) }
-function formatDateISO(d: Date) { return d.toISOString().split("T")[0] }
-
-type DeadlineStatus = {
-  color: string
-  text: string
-  variant: "default" | "warning" | "secondary" | "destructive"
-  icon: React.ReactNode
-  daysRemaining: number
-  label: string
-  unit?: string
-  progress: number
-  currentUsage?: number
-  thresholdUsage?: number
-  elapsedDays?: number
-  totalDays?: number
-}
-
-function colorForVariant(variant: DeadlineStatus["variant"], theme: any) {
-  switch (variant) {
-    case "destructive":
-      return theme.palette.error.main
-    case "secondary":
-      return theme.palette.warning.main // PRONTO
-    case "warning":
-      return "#ffb74d" // AVISO (fijo)
-    default:
-      return theme.palette.success.main
-  }
-}
-
-function getDiffDays(next_due_date: string | null) {
-  if (!next_due_date) return Infinity
-  const today = new Date()
-  const due = new Date(next_due_date)
-  return Math.ceil((due.getTime() - today.getTime()) / MS_PER_DAY)
-}
-
-// === Misma lógica que EntityCard.getDeadlineStatus ===
-function computeDeadlineStatus(d: Deadline): DeadlineStatus {
-  const today = new Date()
-
-  if (d.deadline_types.measure_by === "usage") {
-    const unit = d.deadline_types.unit || d.frequency_unit || ""
-    const hasCurrent = typeof d.current_usage === "number"
-    const hasFreq = typeof d.frequency === "number" && isFinite(d.frequency) && d.frequency > 0
-    const baseline = typeof d.baseline_usage === "number" ? d.baseline_usage : 0
-    const current = hasCurrent ? d.current_usage! : Number.NaN
-
-    if (!hasCurrent || !hasFreq) {
-      return {
-        text: "Sin fecha",
-        variant: "default",
-        icon: <CheckCircle size={16} />,
-        daysRemaining: Number.POSITIVE_INFINITY,
-        label: d.deadline_types.name,
-        color: "",
-        progress: 0,
-        currentUsage: hasCurrent ? current : undefined,
-        thresholdUsage: hasFreq ? baseline + d.frequency : undefined,
-        unit,
-      }
-    }
-
-    const effectiveUsage = Math.max(0, current - baseline)
-    const progress = clamp01(effectiveUsage / d.frequency)
-
-    let text = "Sin fecha"
-    let daysRemaining = Number.POSITIVE_INFINITY
-    const avg = typeof d.usage_daily_average === "number" ? d.usage_daily_average : 0
-
-    if (avg > 0) {
-      const remainingUsage = Math.max(0, d.frequency - effectiveUsage)
-      const days = Math.ceil(remainingUsage / avg)
-      daysRemaining = days
-      const dueDate = new Date(today)
-      dueDate.setDate(today.getDate() + days)
-      text = formatDateISO(dueDate)
-    }
-
-    let variant: DeadlineStatus["variant"] = "default"
-    let icon: React.ReactNode = <CheckCircle size={16} />
-
-    if (progress >= 1) {
-      variant = "destructive"
-      icon = <XCircle size={16} />
-    } else if (progress >= WARNING_PROGRESS) {
-      variant = "secondary"
-      icon = <AlertTriangle size={16} />
-    } else if (progress >= EARLY_WARNING_PROGRESS) {
-      variant = "warning"
-      icon = <Info size={16} />
-    }
-
-    const thresholdUsage = Math.round((baseline + d.frequency) * 100) / 100
-    const currentRounded = Math.round(current * 100) / 100
-
-    return {
-      text,
-      variant,
-      icon,
-      daysRemaining,
-      label: d.deadline_types.name,
-      unit,
-      color: variant === "warning" ? "#ffb74d" : "",
-      progress,
-      currentUsage: currentRounded,
-      thresholdUsage,
-    }
-  }
-
-  const dueDate = d.next_due_date ? new Date(d.next_due_date) : null
-  const lastDone = d.last_done ? new Date(d.last_done) : null
-  const diffDays = dueDate ? daysBetween(dueDate, today) : Number.POSITIVE_INFINITY
-
-  let variant: DeadlineStatus["variant"] = "default"
-  let icon: React.ReactNode = <CheckCircle size={16} />
-
-  if (dueDate && diffDays < 0) {
-    variant = "destructive"
-    icon = <XCircle size={16} />
-  } else if (dueDate && diffDays <= DEADLINE_WARNING_DAYS) {
-    variant = "secondary"
-    icon = <AlertTriangle size={16} />
-  } else if (dueDate && diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
-    variant = "warning"
-    icon = <Info size={16} />
-  }
-
-  let progress = 0
-  let elapsedDays: number | undefined = undefined
-  let totalDays: number | undefined = undefined
-
-  if (lastDone && dueDate) {
-    const total = Math.max(1, daysBetween(dueDate, lastDone))
-    const elapsed = Math.max(0, Math.min(total, daysBetween(new Date(), lastDone)))
-    totalDays = total
-    elapsedDays = Math.max(0, Math.min(total, elapsed))
-    progress = clamp01(elapsed / total)
-  } else if (dueDate) {
-    if (diffDays <= 0) progress = 1
-    else progress = clamp01((DEADLINE_WARNING_DAYS - diffDays) / DEADLINE_WARNING_DAYS)
-  } else {
-    progress = 0
-  }
-
-  return {
-    text: dueDate ? formatDateISO(dueDate) : "Sin fecha",
-    variant,
-    icon,
-    daysRemaining: diffDays,
-    label: d.deadline_types.name,
-    unit: d.deadline_types.unit || d.frequency_unit || undefined,
-    color: variant === "warning" ? "#ffb74d" : "",
-    progress,
-    elapsedDays,
-    totalDays,
-  }
-}
-
 export default function EntityListItem({ entity, deadlines, fieldValues, onClick }: Props) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const [expanded, setExpanded] = useState(false)
 
-  // Solo deadlines activos
   const active = useMemo(() => (deadlines || []).filter(d => d.status === "active"), [deadlines])
 
-  // Puntos por vencimiento (solo para modo comprimido)
+  // Statuses (idénticos a tarjeta)
+  const statuses = useMemo<DeadlineStatus[]>(
+    () => active.map(getDeadlineStatus).sort((a, b) => a.daysRemaining - b.daysRemaining),
+    [active]
+  )
+
+  // Puntos: color/label según variant de la MISMA lógica + límite mobile
   const dots = useMemo(() => {
-    return active.map(d => {
-      const diffDays = getDiffDays(d.next_due_date)
-      let color: string = theme.palette.success.main
-      let label = "Al día"
-      if (isFinite(diffDays)) {
-        if (diffDays < 0) {
-          color = theme.palette.error.main
-          label = "Vencida"
-        } else if (diffDays <= DEADLINE_WARNING_DAYS) {
-          color = PRONTO_HEX
-          label = "Pronto"
-        } else if (diffDays <= DEADLINE_EARLY_WARNING_DAYS) {
-          color = AVISO_HEX
-          label = "Aviso"
-        }
-      }
-      return { id: d.id, color, label }
-    })
-  }, [active, theme.palette.error.main, theme.palette.success.main])
+    return statuses.map((s, idx) => ({
+      key: active[idx]?.id ?? String(idx),
+      color: colorForVariant(s.variant, theme),
+      label: labelForVariant(s.variant),
+    }))
+  }, [statuses, active, theme])
+
+  const maxDots = isMobile ? 5 : 999
+  const extraDots = Math.max(0, dots.length - maxDots)
 
   const handleExpandClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
     e.stopPropagation()
     setExpanded(prev => !prev)
   }
 
-  // Campos visibles como en tarjetas (respeta flags si existen)
+  // Campos visibles como en tarjetas
   const visibleFields = useMemo(() => {
     const arr = fieldValues || []
     const anyFlag = arr.some(f => f?.entity_fields && (
@@ -274,19 +89,12 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
     return arr
   }, [fieldValues])
 
-  // Línea de valores (•) para ambos modos
-  const collapsedValuesLine = useMemo(() => {
+  const valuesLine = useMemo(() => {
     const values = (visibleFields || [])
       .map(f => (f.value ?? "").toString().trim())
       .filter(v => v.length > 0)
     return values.length > 0 ? values.join(" • ") : "—"
   }, [visibleFields])
-
-  // Statuses con MISMA lógica que la tarjeta
-  const sortedStatuses = useMemo(() => {
-    const statuses = active.map(computeDeadlineStatus)
-    return statuses.sort((a, b) => a.daysRemaining - b.daysRemaining)
-  }, [active])
 
   return (
     <Box
@@ -294,91 +102,171 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
       role="button"
       tabIndex={0}
       sx={{
-        p: 1.25,
+        p: { xs: 2, sm: 2.5 },          // mismo padding que tarjetas
         borderRadius: 2,
         border: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",        // el borde no suma ancho
+        overflow: "hidden",
+        "& *": { boxSizing: "border-box", minWidth: 0, maxWidth: "100%" }, // cinturón de seguridad
         "&:hover": {
           borderColor: theme.palette.primary.main,
-          boxShadow: 2
+          boxShadow: 2,
         },
         outline: "none",
-        cursor: "pointer"
+        cursor: "pointer",
       }}
     >
-      {/* ===== Fila superior: título + valores + (puntos si comprimido) + chevron ===== */}
-      <Box display="flex" alignItems="center" gap={0.75}>
-        {/* Título */}
-        <Typography
-          variant="subtitle1"
-          noWrap
-          sx={{
-            flexGrow: 0,
-            flexShrink: 1,
-            flexBasis: { xs: "42%", sm: "32%" },
-            maxWidth: { xs: "42%", sm: "32%" },
-            fontWeight: 600,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            pr: 0.75
-          }}
-          title={entity.name}
-        >
-          {entity.name}
-        </Typography>
+      {/* ===== Cabecera ===== */}
+      {isMobile ? (
+        // ---- MOBILE: 2 líneas ----
+        <>
+          <Box display="flex" alignItems="center" gap={0.75} sx={{ minWidth: 0 }}>
+            <Typography
+              variant="subtitle1"
+              noWrap
+              sx={{
+                flex: 1,
+                fontWeight: 600,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                pr: 0.75,
+              }}
+              title={entity.name}
+            >
+              {entity.name}
+            </Typography>
 
-        {/* Valores (•) — SIEMPRE inline */}
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          noWrap
-          title={collapsedValuesLine}
-          sx={{ fontSize: isMobile ? "0.8rem" : "0.9rem", minWidth: 0, flex: 1 }}
-        >
-          {collapsedValuesLine}
-        </Typography>
-
-        {/* Puntos (solo comprimido) */}
-        {!expanded && dots.length > 0 && (
-          <Box
-            display="flex"
-            alignItems="center"
-            gap={0.5}
-            sx={{ flexShrink: 0, maxWidth: "30%" }}
-          >
-            {dots.map(dot => (
+            {!expanded && dots.length > 0 && (
               <Box
-                key={dot.id}
-                component="span"
-                title={dot.label}
-                aria-label={dot.label}
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  bgcolor: dot.color,
-                  boxShadow: `0 0 0 1px ${theme.palette.mode === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`
-                }}
-              />
-            ))}
+                display="flex"
+                alignItems="center"
+                gap={0.5}
+                sx={{ flexShrink: 0, maxWidth: "40%", minWidth: 0, overflow: "hidden" }}
+              >
+                {dots.slice(0, maxDots).map(dot => (
+                  <Box
+                    key={dot.key}
+                    component="span"
+                    title={dot.label}
+                    aria-label={dot.label}
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      bgcolor: dot.color,
+                      boxShadow: `0 0 0 1px ${theme.palette.mode === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`
+                    }}
+                  />
+                ))}
+                {extraDots > 0 && (
+                  <Typography variant="caption" sx={{ ml: 0.25, color: "text.secondary" }}>
+                    +{extraDots}
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            <IconButton
+              aria-label={expanded ? "Contraer" : "Expandir"}
+              size="small"
+              onClick={handleExpandClick}
+              sx={{ ml: 0.25, flexShrink: 0 }}
+            >
+              {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </IconButton>
           </Box>
-        )}
 
-        {/* Botón expandir/contraer */}
-        <IconButton
-          aria-label={expanded ? "Contraer" : "Expandir"}
-          size="small"
-          onClick={handleExpandClick}
-          sx={{ ml: 0.25, flexShrink: 0 }}
-        >
-          {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </IconButton>
-      </Box>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            title={valuesLine}
+            sx={{
+              fontSize: "0.9rem",
+              mt: 0.25,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {valuesLine}
+          </Typography>
+        </>
+      ) : (
+        // ---- DESKTOP/TABLET: 1 línea ----
+        <Box display="flex" alignItems="center" gap={0.75} sx={{ minWidth: 0 }}>
+          <Typography
+            variant="subtitle1"
+            noWrap
+            sx={{
+              flexGrow: 0,
+              flexShrink: 1,
+              flexBasis: "32%",
+              maxWidth: "32%",
+              fontWeight: 600,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              pr: 0.75,
+            }}
+            title={entity.name}
+          >
+            {entity.name}
+          </Typography>
 
-      {/* ===== Contenido expandido: DISEÑO CALCADO DE EntityCard ===== */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            noWrap
+            title={valuesLine}
+            sx={{ fontSize: "0.9rem", minWidth: 0, flex: "1 1 0" }}
+          >
+            {valuesLine}
+          </Typography>
+
+          {!expanded && dots.length > 0 && (
+            <Box
+              display="flex"
+              alignItems="center"
+              gap={0.5}
+              sx={{ flexShrink: 1, maxWidth: "30%", minWidth: 0, overflow: "hidden" }}
+            >
+              {dots.map(dot => (
+                <Box
+                  key={dot.key}
+                  component="span"
+                  title={dot.label}
+                  aria-label={dot.label}
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    bgcolor: dot.color,
+                    boxShadow: `0 0 0 1px ${theme.palette.mode === "dark" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`
+                  }}
+                />
+              ))}
+            </Box>
+          )}
+
+          <IconButton
+            aria-label={expanded ? "Contraer" : "Expandir"}
+            size="small"
+            onClick={handleExpandClick}
+            sx={{ ml: 0.25, flexShrink: 0 }}
+          >
+            {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </IconButton>
+        </Box>
+      )}
+
+      {/* ===== Contenido expandido (idéntico a tarjeta) ===== */}
       {expanded && (
         <Box mt={1.0} onClick={(e) => e.stopPropagation()}>
           <Box component="section" sx={{ borderTop: "1px dashed", borderColor: "divider", pt: 1 }}>
@@ -386,11 +274,11 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
               Vencimientos
             </Typography>
 
-            {sortedStatuses.length === 0 ? (
+            {statuses.length === 0 ? (
               <Typography variant="caption" color="text.secondary">Sin vencimientos</Typography>
             ) : (
               <Box sx={{ display: "flex", flexDirection: "column", gap: isMobile ? 0.5 : 0.75, mt: 0.5 }}>
-                {sortedStatuses.map((d, idx) => (
+                {statuses.map((d, idx) => (
                   <Box
                     key={idx}
                     sx={{
@@ -404,7 +292,6 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
                       transition: "all 0.2s ease",
                     }}
                   >
-                    {/* Título + icono */}
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Box sx={{ color: colorForVariant(d.variant, theme), display: "flex", alignItems: "center" }}>
                         {d.icon}
@@ -423,7 +310,6 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
                       </Typography>
                     </Box>
 
-                    {/* Barra + porcentaje */}
                     <Box
                       aria-label={`${d.label}: ${Math.round(clamp01(d.progress ?? 0) * 100)}%`}
                       role="progressbar"
@@ -488,7 +374,6 @@ export default function EntityListItem({ entity, deadlines, fieldValues, onClick
                       </Typography>
                     </Box>
 
-                    {/* Detalles */}
                     <Typography
                       variant="body2"
                       sx={{
