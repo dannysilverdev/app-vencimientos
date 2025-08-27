@@ -47,22 +47,26 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
   const [expanded, setExpanded] = useState(false)
 
-  // Custom fields visibles (exactamente como en tarjeta)
+  // Mobile: un poco más denso para 2 por fila
+  const mobilePadding = 1.25
+  const mobileGap = 1.0
+  const titleMobileSize = "1rem"
+
   const chips = useMemo(
     () => fieldValues.filter((f) => f.entity_fields?.show_in_card && f.value?.trim()),
-    [fieldValues]
+    [fieldValues],
   )
-  const visibleChips = chips.slice(0, isMobile ? 4 : 6)
+  // Mobile: mostrar un chip menos para evitar cortes en 2-col
+  const visibleChips = chips.slice(0, isMobile ? 3 : 6)
   const hiddenChipsCount = Math.max(0, chips.length - visibleChips.length)
 
-  // Deadlines ordenados (misma lógica/colores que el helper compartido)
   const sorted = useMemo<DeadlineStatus[]>(
     () =>
       deadlines
         .filter((d) => d.status === "active")
         .map(getDeadlineStatus)
         .sort((a, b) => a.daysRemaining - b.daysRemaining),
-    [deadlines]
+    [deadlines],
   )
 
   const surface =
@@ -89,8 +93,8 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       sx={{
         background: surface,
         border: `1px solid ${border}`,
-        borderRadius: isMobile ? 2 : 3,
-        p: isMobile ? 2 : 2.5,
+        borderRadius: { xs: 2, sm: 3 },
+        p: { xs: mobilePadding, sm: 2, md: 2.5 },  // ✅ más compacto en mobile
         boxShadow:
           theme.palette.mode === "dark"
             ? "0 4px 20px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2)"
@@ -101,7 +105,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
         cursor: "pointer",
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         "&:hover": {
-          transform: isMobile ? "translateY(-1px)" : "translateY(-4px)",
+          transform: { xs: "translateY(-1px)", sm: "translateY(-4px)" },
           boxShadow:
             theme.palette.mode === "dark"
               ? "0 8px 32px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3)"
@@ -114,15 +118,16 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           outlineOffset: 2,
         },
         "&:active": {
-          transform: isMobile ? "translateY(0px)" : "translateY(-2px)",
+          transform: { xs: "translateY(0px)", sm: "translateY(-2px)" },
         },
         display: "flex",
         flexDirection: "column",
-        gap: isMobile ? 1.25 : 1.75,
+        gap: { xs: mobileGap, sm: 1.25, md: 1.75 }, // ✅ menos gap en mobile
         position: "relative",
+        boxSizing: "border-box",
       }}
     >
-      {/* Botón flotante para expandir/contraer detalles de cada deadline */}
+      {/* Toggle expand */}
       {sorted.length > 0 && (
         <Box
           onClick={(e) => {
@@ -131,11 +136,11 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
           }}
           sx={{
             position: "absolute",
-            top: isMobile ? 12 : 16,
-            right: isMobile ? 12 : 16,
+            top: { xs: 8, sm: 12, md: 16 },
+            right: { xs: 8, sm: 12, md: 16 },
             zIndex: 1,
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -170,8 +175,8 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
             letterSpacing: -0.01,
             wordBreak: "break-word",
             color: theme.palette.text.primary,
-            fontSize: isMobile ? "1.1rem" : "1.25rem",
-            pr: 5, // espacio para el botón flotante
+            fontSize: { xs: titleMobileSize, sm: "1.15rem", md: "1.25rem" }, // ✅ más chico en mobile
+            pr: 5,
           }}
         >
           {entity.name}
@@ -184,7 +189,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               color: theme.palette.text.secondary,
               fontWeight: 500,
               lineHeight: 1.3,
-              fontSize: isMobile ? "0.8rem" : "0.85rem",
+              fontSize: { xs: "0.75rem", sm: "0.8rem", md: "0.85rem" }, // ✅ más chico en mobile
               pr: 5,
             }}
             title={chips.map((c) => c.value).join(" • ")}
@@ -196,13 +201,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
       </Box>
 
       {/* Deadlines */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: isMobile ? 0.5 : 0.75,
-        }}
-      >
+      <Box sx={{ display: "flex", flexDirection: "column", gap: { xs: 0.5, sm: 0.75 } }}>
         {sorted.map((d, i) => (
           <Box
             key={i}
@@ -210,14 +209,13 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               display: "flex",
               flexDirection: "column",
               gap: 0.25,
-              p: isMobile ? 0.5 : 0.75,
+              p: { xs: 0.5, sm: 0.75 },
               borderRadius: 2,
               bgcolor: alpha(colorFor(d.variant), 0.05),
               border: `1px solid ${alpha(colorFor(d.variant), 0.15)}`,
               transition: "all 0.2s ease",
             }}
           >
-            {/* Título + ícono (solo expandido) */}
             {expanded && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Box sx={{ color: colorFor(d.variant), display: "flex", alignItems: "center" }}>
@@ -228,7 +226,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   sx={{
                     fontWeight: 700,
                     color: colorFor(d.variant),
-                    fontSize: isMobile ? "0.85rem" : "0.9rem",
+                    fontSize: { xs: "0.82rem", sm: "0.9rem" }, // ✅ más chico en mobile
                     flex: 1,
                   }}
                 >
@@ -237,14 +235,13 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
               </Box>
             )}
 
-            {/* Compacto: etiqueta + barra  /  Expandido: barra + porcentaje */}
             {!expanded ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Typography
                   variant="caption"
                   noWrap
                   sx={{
-                    flexBasis: "38%",
+                    flexBasis: { xs: "42%", sm: "38%" }, // ✅ un poco más de ancho para label en mobile
                     flexGrow: 0,
                     flexShrink: 1,
                     color: colorFor(d.variant),
@@ -266,7 +263,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   sx={{
                     flex: 1,
                     position: "relative",
-                    height: isMobile ? 6 : 8,
+                    height: { xs: 5, sm: 6, md: 8 }, // ✅ barra más baja en mobile
                     borderRadius: 999,
                     bgcolor: alpha(colorFor(d.variant), 0.15),
                     overflow: "hidden",
@@ -312,13 +309,13 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(clamp01(d.progress ?? 0) * 100)}
-                sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1.5 }}
+                sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1.25 }}
               >
                 <Box
                   sx={{
                     flex: 1,
                     position: "relative",
-                    height: isMobile ? 6 : 8,
+                    height: { xs: 5, sm: 6, md: 8 },
                     borderRadius: 999,
                     bgcolor: alpha(colorFor(d.variant), 0.15),
                     overflow: "hidden",
@@ -361,9 +358,9 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   sx={{
                     fontWeight: 600,
                     color: colorFor(d.variant),
-                    minWidth: isMobile ? 28 : 34,
+                    minWidth: { xs: 26, sm: 28, md: 34 },
                     textAlign: "right",
-                    fontSize: isMobile ? "0.7rem" : "0.75rem",
+                    fontSize: { xs: "0.68rem", sm: "0.72rem", md: "0.75rem" },
                   }}
                 >
                   {Math.round(clamp01(d.progress ?? 0) * 100)}%
@@ -378,7 +375,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   variant="body2"
                   sx={{
                     color: theme.palette.text.secondary,
-                    fontSize: isMobile ? "0.8rem" : "0.85rem",
+                    fontSize: { xs: "0.78rem", sm: "0.82rem", md: "0.85rem" },
                     lineHeight: 1.4,
                   }}
                 >
@@ -393,7 +390,7 @@ export default function EntityCard({ entity, deadlines, fieldValues = [], onClic
                   variant="caption"
                   sx={{
                     color: theme.palette.text.secondary,
-                    fontSize: isMobile ? "0.7rem" : "0.75rem",
+                    fontSize: { xs: "0.68rem", sm: "0.72rem", md: "0.75rem" },
                     fontWeight: 500,
                     lineHeight: 1.3,
                   }}

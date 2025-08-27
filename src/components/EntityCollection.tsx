@@ -66,7 +66,7 @@ export default function EntityCollection({
         sx={{
           display: "grid",
           gridTemplateColumns: {
-            xs: "1fr",
+            xs: "repeat(2, minmax(0, 1fr))",        // ✅ 2 columnas en mobile
             sm: "repeat(2, minmax(0, 1fr))",
             md: "repeat(3, minmax(0, 1fr))",
             lg: "repeat(4, minmax(0, 1fr))",
@@ -98,7 +98,7 @@ export default function EntityCollection({
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr)", // evita desbordes
+        gridTemplateColumns: "minmax(0, 1fr)",
         gap: { xs: 0.75, md: 1 },
         width: "100%",
         maxWidth: "100%",
@@ -106,14 +106,7 @@ export default function EntityCollection({
       }}
     >
       {entities.map((entity) => (
-        <Box
-          key={entity.id}
-          sx={{
-            width: "100%",
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
+        <Box key={entity.id} sx={{ width: "100%", minWidth: 0, overflow: "hidden" }}>
           <EntityListItem
             entity={entity}
             deadlines={deadlinesByEntity[entity.id] || []}
